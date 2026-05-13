@@ -1,115 +1,497 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:paddingLeft="16dp"
-    android:paddingRight="16dp"
-    android:paddingBottom="50dp"
-    android:paddingTop="16dp"
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:background="#101014"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/app_background"
+    android:paddingStart="16dp"
+    android:paddingTop="42dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="14dp">
+
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/appTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans"
+            android:text="Novel Voice Reader"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans"
+            android:text="Status: waiting"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/chapterTitleText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:fontFamily="sans"
+            android:maxLines="2"
+            android:text="No chapter loaded"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/urlBar"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/urlInput"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:background="@drawable/rounded_input"
+                android:ellipsize="end"
+                android:fontFamily="sans"
+                android:hint="Paste chapter URL"
+                android:inputType="textUri"
+                android:maxLines="1"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:selectAllOnFocus="true"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/startButton"
+                android:layout_width="104dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="10dp"
+                android:text="Read"
+                android:textAllCaps="false"
+                android:textColor="@color/app_background"
+                android:textSize="14sp"
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="24dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/actionBar"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/saveButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Save"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/libraryButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Library"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/voiceButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1.25"
+                android:minWidth="0dp"
+                android:text="Voice"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/secondaryActionBar"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/timerButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Timer off"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/downloadButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Download"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/readerModeButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Reader"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+        </LinearLayout>
+    </LinearLayout>
 
     <WebView
         android:id="@+id/webView"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="14dp"
+        android:background="@drawable/webview_surface"
+        app:layout_constraintBottom_toTopOf="@id/playerPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBar" />
 
-    <EditText
-        android:id="@+id/urlInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Paste chapter URL here" />
+    <ScrollView
+        android:id="@+id/readerScrollView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="14dp"
+        android:background="@drawable/rounded_panel"
+        android:fillViewport="true"
+        android:paddingStart="18dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="18dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/playerPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBar">
 
-    <Button
-        android:id="@+id/startButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Start Reading" />
-
-    <Button
-        android:id="@+id/stopButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Stop" />
-
-    <Button
-        android:id="@+id/nextButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Next Chapter" />
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Status: waiting"
-        android:padding="8dp"
-        android:textSize="14sp" />
-    <TextView
-        android:id="@+id/progressText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Chapter Progress: 0%"
-        android:padding="8dp"
-        android:textSize="14sp" />
-
-    <ProgressBar
-        android:id="@+id/chapterProgressBar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:max="100"
-        android:progress="0"
-        android:padding="8dp" />
-
-    <SeekBar
-        android:id="@+id/audioSeekBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:max="100"
-        android:progress="0" />
-
-    <TextView
-        android:id="@+id/timeText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="0% played"
-        android:padding="8dp"
-        android:textSize="14sp" />
+        <TextView
+            android:id="@+id/readerTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans"
+            android:lineSpacingExtra="6dp"
+            android:text="Reader mode will appear after a chapter is extracted."
+            android:textColor="@color/text_primary"
+            android:textIsSelectable="false"
+            android:textSize="18sp" />
+    </ScrollView>
 
     <LinearLayout
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:id="@+id/playerPanel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/rounded_panel"
+        android:elevation="10dp"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="14dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
-        <Button
-            android:id="@+id/skipBackButton"
-            android:layout_width="0dp"
-            android:layout_weight="1"
+        <LinearLayout
+            android:id="@+id/playerHeader"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="-15" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/playPauseButton"
-            android:layout_width="0dp"
-            android:layout_weight="1"
+            <TextView
+                android:id="@+id/progressText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans"
+                android:includeFontPadding="false"
+                android:text="Chapter Progress: 0%"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/timeText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans"
+                android:gravity="end"
+                android:includeFontPadding="false"
+                android:text="0% played"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/collapsePlayerButton"
+                android:layout_width="92dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="10dp"
+                android:minWidth="0dp"
+                android:text="Hide"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="18dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/miniPlayerControls"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/miniPlayPauseButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Play"
+                android:textAllCaps="false"
+                android:textColor="@color/app_background"
+                android:textSize="14sp"
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="21dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/expandPlayerButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="Expand"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/currentSentenceText"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Pause" />
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="Current sentence will appear here"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
 
-        <Button
-            android:id="@+id/skipForwardButton"
-            android:layout_width="0dp"
-            android:layout_weight="1"
+        <ProgressBar
+            android:id="@+id/chapterProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:layout_marginTop="10dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_track" />
+
+        <SeekBar
+            android:id="@+id/audioSeekBar"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="@color/accent"
+            android:thumbTint="@color/accent_strong" />
+
+        <LinearLayout
+            android:id="@+id/playbackControls"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="+15" />
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/skipForward60Button"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="+60" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/skipBackButton"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:ellipsize="none"
+                android:minWidth="0dp"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="-15"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="22dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/playPauseButton"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1.4"
+                android:ellipsize="none"
+                android:minWidth="0dp"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="Play"
+                android:textAllCaps="false"
+                android:textColor="@color/app_background"
+                android:textSize="14sp"
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="22dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/skipForwardButton"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:ellipsize="none"
+                android:minWidth="0dp"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="+15"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="22dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/skipForward60Button"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="0dp"
+                android:layout_weight="1"
+                android:ellipsize="none"
+                android:minWidth="0dp"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="+60"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="22dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/nextButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="Next chapter"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            app:backgroundTint="@color/surface_high"
+            app:cornerRadius="22dp"
+            app:strokeColor="@color/stroke_subtle"
+            app:strokeWidth="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="Stop reading"
+            android:textAllCaps="false"
+            android:textColor="@color/danger"
+            android:textSize="14sp"
+            app:backgroundTint="@color/surface_high"
+            app:cornerRadius="22dp"
+            app:strokeColor="@color/stroke_subtle"
+            app:strokeWidth="1dp" />
     </LinearLayout>
-
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
