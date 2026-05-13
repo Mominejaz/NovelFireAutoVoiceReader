@@ -30,8 +30,10 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.novelvoicereader.data.ChapterPrefsRepository
+import com.example.novelvoicereader.data.DirectChapterFetcher
 import com.example.novelvoicereader.data.WebContentBlocker
 import com.example.novelvoicereader.domain.model.Chapter
+import com.example.novelvoicereader.domain.model.ChapterContent
 import com.example.novelvoicereader.domain.model.SleepTimer
 import com.example.novelvoicereader.domain.repository.ChapterRepository
 import com.example.novelvoicereader.domain.usecase.GetCurrentChapterUseCase
@@ -82,6 +84,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var getLibrary: GetLibraryUseCase
     private lateinit var saveCurrentChapterUseCase: SaveCurrentChapterUseCase
     private lateinit var saveChapterToLibrary: SaveChapterToLibraryUseCase
+    private val directChapterFetcher = DirectChapterFetcher()
 
     private var chunks: List<String> = emptyList()
     private var chunkRanges: List<IntRange> = emptyList()
@@ -172,6 +175,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun configureWebView() {
+        webView.setBackgroundColor(Color.parseColor("#111318"))
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = false
@@ -238,10 +242,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val url = urlInput.text.toString().trim()
 
             if (url.isNotEmpty()) {
-                statusText.text = "Status: loading page..."
+                statusText.text = "Status: fetching chapter text..."
                 currentUrl = url
-                showReaderMode(false)
-                webView.loadUrl(url)
+                fetchChapterDirectly(url, speakAfterLoad = true)
             } else {
                 statusText.text = "Status: paste a chapter URL first"
             }
@@ -390,6 +393,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (readerModeEnabled) {
             updateReaderText()
             setPlayerCollapsed(true)
+        } else if (webView.url.isNullOrBlank()) {
+            statusText.text = "Status: browser ready. Tap Read to reload the page."
         }
     }
 
@@ -765,6 +770,61 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun fetchChapterDirectly(url: String, speakAfterLoad: Boolean) {
+        if (url.isBlank()) {
+            statusText.text = "Status: paste a chapter URL first"
+            return
+        }
+
+        autoContinue = true
+        currentUrl = url
+        urlInput.setText(url)
+        statusText.text = "Status: fetching chapter text..."
+
+        Thread {
+            val result = directChapterFetcher.fetch(url)
+            runOnUiThread {
+                result
+                    .onSuccess { content ->
+                        applyFetchedChapter(url, content, speakAfterLoad)
+                    }
+                    .onFailure { error ->
+                        statusText.text = "Status: lightweight reader failed: ${error.message ?: "could not extract text"}"
+                    }
+            }
+        }.start()
+    }
+
+    private fun applyFetchedChapter(url: String, content: ChapterContent, speakAfterLoad: Boolean) {
+        val title = content.title.ifBlank { "Untitled chapter" }
+        val text = normalizeChapterText(content.text, title)
+
+        if (text.isBlank()) {
+            statusText.text = "Status: could not extract chapter text"
+            return
+        }
+
+        currentTitle = title
+        currentText = text
+        currentUrl = url
+        currentChunkIndex = 0
+        prepareChunks(text, resetPosition = true)
+        saveCurrentChapter()
+        saveCurrentChapterToLibrary(silent = true)
+        showReaderMode(true)
+        statusText.text = "Status: loaded lightweight reader (${text.length} characters)"
+
+        if (speakAfterLoad) {
+            if (ttsReady) {
+                speakCurrentChunk()
+            } else {
+                isPlaying = false
+                setPlaybackButtonText("Play")
+                statusText.text = "Status: chapter loaded. TTS is still starting."
+            }
+        }
+    }
+
     private fun unpackJavascriptString(result: String): String {
         return if (result.startsWith("\"")) {
             result.substring(1, result.length - 1)
@@ -851,8 +911,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         urlInput.setText(nextChapterUrl)
         statusText.text = "Status: loading next chapter..."
         autoContinue = true
-        showReaderMode(false)
-        webView.loadUrl(nextChapterUrl)
+        fetchChapterDirectly(nextChapterUrl, speakAfterLoad = true)
     }
 
     private fun getNextChapterUrl(sourceUrl: String): String {
