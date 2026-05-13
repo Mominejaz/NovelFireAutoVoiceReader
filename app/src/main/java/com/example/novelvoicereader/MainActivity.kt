@@ -66,6 +66,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         skipForwardButton = findViewById(R.id.skipForwardButton)
         skipForward60Button = findViewById(R.id.skipForward60Button)
 
+        val prefs = getSharedPreferences("NovelVoiceReaderPrefs", MODE_PRIVATE)
+
         tts = TextToSpeech(this, this)
 
         webView.settings.javaScriptEnabled = true
@@ -75,7 +77,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-
+                if (url != null) {
+                    prefs.edit().putString("last_url", url).apply()
+                }
                 statusText.text = "Status: page loaded. Trying to extract text..."
 
                 if (autoContinue) {
@@ -155,6 +159,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         updatePlayerProgress()
         playPauseButton.text = "Play"
+
+        val savedUrl = prefs.getString("last_url", null)
+
+        if (savedUrl != null) {
+            urlInput.setText(savedUrl)
+            statusText.text = "Status: loading last page..."
+            webView.loadUrl(savedUrl)
+        }
     }
 
     override fun onInit(status: Int) {
