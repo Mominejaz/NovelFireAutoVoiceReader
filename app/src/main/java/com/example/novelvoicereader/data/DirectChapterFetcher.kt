@@ -31,18 +31,24 @@ class DirectChapterFetcher {
             val html = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 .let { if (charset.equals("UTF-8", ignoreCase = true)) it else it }
 
-            parse(html)
+            parse(html, url)
         } finally {
             connection.disconnect()
         }
     }
 
-    fun parse(html: String): ChapterContent {
+    fun parse(html: String, sourceUrl: String? = null): ChapterContent {
         val title = extractTitle(html)
         val candidateHtml = chapterCandidates(html).maxByOrNull { stripToText(it).length } ?: html
         val text = cleanupChapterText(stripToText(candidateHtml), title)
+        val chapterLinks = extractChapterLinks(html, sourceUrl)
         if (text.length < 200) error("chapter text was too short")
-        return ChapterContent(title = title.ifBlank { "Untitled chapter" }, text = text)
+        return ChapterContent(
+            title = title.ifBlank { "Untitled chapter" },
+            text = text,
+            previousUrl = chapterLinks.previousUrl,
+            nextUrl = chapterLinks.nextUrl
+        )
     }
 
     private fun extractTitle(html: String): String {
@@ -81,6 +87,72 @@ class DirectChapterFetcher {
             ?.let(candidates::add)
 
         return candidates
+    }
+
+    private fun extractChapterLinks(html: String, sourceUrl: String?): ChapterLinks {
+        if (sourceUrl.isNullOrBlank()) return ChapterLinks()
+
+        val anchorPattern = Regex("""(?is)<a\b([^>]*)>(.*?)</a>""")
+        val hrefPattern = Regex("""(?is)\bhref\s*=\s*["']([^"']+)["']""")
+        val relPattern = Regex("""(?is)\brel\s*=\s*["']([^"']+)["']""")
+        val classPattern = Regex("""(?is)\bclass\s*=\s*["']([^"']+)["']""")
+        val titlePattern = Regex("""(?is)\btitle\s*=\s*["']([^"']+)["']""")
+        val ariaPattern = Regex("""(?is)\baria-label\s*=\s*["']([^"']+)["']""")
+
+        var previousCandidate: ScoredLink? = null
+        var nextCandidate: ScoredLink? = null
+
+        anchorPattern.findAll(html).forEach { match ->
+            val attributes = match.groupValues.getOrNull(1).orEmpty()
+            val href = hrefPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
+            val resolvedUrl = resolveUrl(sourceUrl, href) ?: return@forEach
+            val label = listOf(
+                stripToText(match.groupValues.getOrNull(2).orEmpty()),
+                relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
+                classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
+                titlePattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
+                ariaPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
+            ).joinToString(" ").lowercase(Locale.US)
+
+            val previousScore = chapterLinkScore(label, isNext = false)
+            if (previousScore > 0 && previousScore > (previousCandidate?.score ?: 0)) {
+                previousCandidate = ScoredLink(resolvedUrl, previousScore)
+            }
+
+            val nextScore = chapterLinkScore(label, isNext = true)
+            if (nextScore > 0 && nextScore > (nextCandidate?.score ?: 0)) {
+                nextCandidate = ScoredLink(resolvedUrl, nextScore)
+            }
+        }
+
+        return ChapterLinks(
+            previousUrl = previousCandidate?.url,
+            nextUrl = nextCandidate?.url
+        )
+    }
+
+    private fun chapterLinkScore(label: String, isNext: Boolean): Int {
+        val primaryWords = if (isNext) listOf("next", "forward") else listOf("previous", "prev", "back")
+        val directionScore = primaryWords.sumOf { word -> if (label.contains(word)) 10 else 0 }
+        if (directionScore == 0) return 0
+
+        val chapterScore = if (label.contains("chapter")) 4 else 0
+        val relScore = if (isNext && label.contains("next")) 8 else if (!isNext && label.contains("prev")) 8 else 0
+        return directionScore + chapterScore + relScore
+    }
+
+    private fun resolveUrl(sourceUrl: String, href: String): String? {
+        if (href.isBlank()) return null
+        val trimmed = href.trim()
+        if (
+            trimmed.startsWith("#") ||
+            trimmed.startsWith("javascript:", ignoreCase = true) ||
+            trimmed.startsWith("mailto:", ignoreCase = true)
+        ) {
+            return null
+        }
+
+        return runCatching { URL(URL(sourceUrl), trimmed).toString() }.getOrNull()
     }
 
     private fun stripToText(rawHtml: String): String {
@@ -158,4 +230,14 @@ class DirectChapterFetcher {
                 match.groupValues[1].toIntOrNull()?.toChar()?.toString().orEmpty()
             }
     }
+
+    private data class ChapterLinks(
+        val previousUrl: String? = null,
+        val nextUrl: String? = null
+    )
+
+    private data class ScoredLink(
+        val url: String,
+        val score: Int
+    )
 }

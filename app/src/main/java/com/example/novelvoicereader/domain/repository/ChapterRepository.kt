@@ -7,4 +7,5 @@ interface ChapterRepository {
     fun saveCurrentChapter(chapter: Chapter)
     fun getLibrary(): List<Chapter>
     fun saveToLibrary(chapter: Chapter)
+    fun removeFromLibrary(url: String)
 }

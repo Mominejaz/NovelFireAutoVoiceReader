@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootContainer"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_background"
@@ -18,22 +19,57 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <TextView
-            android:id="@+id/appTitle"
+        <LinearLayout
+            android:id="@+id/appHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="sans"
-            android:text="Novel Voice Reader"
-            android:textColor="@color/text_primary"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/appLogo"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/app_logo_mark" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/appTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif"
+                    android:includeFontPadding="false"
+                    android:text="Novel Voice Reader"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/appSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="sans-serif"
+                    android:includeFontPadding="false"
+                    android:text="Reader-first listening"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:fontFamily="sans"
+            android:fontFamily="sans-serif"
             android:text="Status: waiting"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
@@ -44,7 +80,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:ellipsize="end"
-            android:fontFamily="sans"
+            android:fontFamily="sans-serif"
             android:maxLines="2"
             android:text="No chapter loaded"
             android:textColor="@color/text_primary"
@@ -66,7 +102,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/rounded_input"
                 android:ellipsize="end"
-                android:fontFamily="sans"
+                android:fontFamily="sans-serif"
                 android:hint="Paste chapter URL"
                 android:inputType="textUri"
                 android:maxLines="1"
@@ -112,6 +148,9 @@
                 android:textSize="13sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
+                app:icon="@drawable/ic_save"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
 
@@ -128,6 +167,9 @@
                 android:textSize="13sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
+                app:icon="@drawable/ic_library"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
 
@@ -143,6 +185,27 @@
                 android:textSize="13sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
+                app:icon="@drawable/ic_voice"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/moreButton"
+                android:layout_width="54dp"
+                android:layout_height="42dp"
+                android:layout_marginStart="8dp"
+                android:minWidth="0dp"
+                android:text=""
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:icon="@drawable/ic_more"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
         </LinearLayout>
@@ -153,7 +216,8 @@
             android:layout_height="44dp"
             android:layout_marginTop="8dp"
             android:gravity="center"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:visibility="gone">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/timerButton"
@@ -162,12 +226,34 @@
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:minWidth="0dp"
-                android:text="Timer off"
+                android:text="Timer"
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
+                app:icon="@drawable/ic_timer"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/speedButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="0dp"
+                android:text="1x"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:icon="@drawable/ic_speed"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
 
@@ -178,12 +264,15 @@
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:minWidth="0dp"
-                android:text="Download"
+                android:text="Queue"
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
+                app:icon="@drawable/ic_queue"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
 
@@ -199,6 +288,9 @@
                 android:textSize="13sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
+                app:icon="@drawable/ic_book"
+                app:iconGravity="textStart"
+                app:iconPadding="4dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
         </LinearLayout>
@@ -238,7 +330,7 @@
             android:id="@+id/readerTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="sans"
+            android:fontFamily="sans-serif"
             android:lineSpacingExtra="6dp"
             android:text="Reader mode will appear after a chapter is extracted."
             android:textColor="@color/text_primary"
@@ -273,7 +365,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:fontFamily="sans"
+                android:fontFamily="sans-serif"
                 android:includeFontPadding="false"
                 android:text="Chapter Progress: 0%"
                 android:textColor="@color/text_primary"
@@ -284,7 +376,7 @@
                 android:id="@+id/timeText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="sans"
+                android:fontFamily="sans-serif"
                 android:gravity="end"
                 android:includeFontPadding="false"
                 android:text="0% played"
@@ -320,9 +412,13 @@
                 android:id="@+id/miniPlayPauseButton"
                 android:layout_width="0dp"
                 android:layout_height="42dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1.2"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:minWidth="0dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
                 android:text="Play"
                 android:textAllCaps="false"
                 android:textColor="@color/app_background"
@@ -331,19 +427,44 @@
                 app:cornerRadius="21dp" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/expandPlayerButton"
+                android:id="@+id/miniSkipBackButton"
                 android:layout_width="0dp"
                 android:layout_height="42dp"
-                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="0.85"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:minWidth="0dp"
-                android:text="Expand"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:text="-15"
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 app:backgroundTint="@color/surface_high"
                 app:cornerRadius="21dp"
                 app:strokeColor="@color/stroke_subtle"
                 app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/miniSkipForwardButton"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="0.85"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
+                android:text="+15"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="21dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
         </LinearLayout>
 
         <TextView
@@ -389,11 +510,15 @@
                 android:id="@+id/skipBackButton"
                 android:layout_width="0dp"
                 android:layout_height="44dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="0.82"
                 android:ellipsize="none"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:maxLines="1"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
                 android:singleLine="true"
                 android:text="-15"
                 android:textAllCaps="false"
@@ -409,11 +534,15 @@
                 android:layout_width="0dp"
                 android:layout_height="44dp"
                 android:layout_marginStart="2dp"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1.4"
                 android:ellipsize="none"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:maxLines="1"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
                 android:singleLine="true"
                 android:text="Play"
                 android:textAllCaps="false"
@@ -426,11 +555,15 @@
                 android:id="@+id/skipForwardButton"
                 android:layout_width="0dp"
                 android:layout_height="44dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="0.82"
                 android:ellipsize="none"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:maxLines="1"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
                 android:singleLine="true"
                 android:text="+15"
                 android:textAllCaps="false"
@@ -446,10 +579,14 @@
                 android:layout_width="0dp"
                 android:layout_height="44dp"
                 android:layout_marginEnd="0dp"
-                android:layout_weight="1"
+                android:layout_weight="0.82"
                 android:ellipsize="none"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:minWidth="0dp"
                 android:maxLines="1"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
                 android:singleLine="true"
                 android:text="+60"
                 android:textAllCaps="false"
@@ -462,36 +599,71 @@
 
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/nextButton"
+        <LinearLayout
+            android:id="@+id/chapterNavControls"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:maxLines="1"
-            android:singleLine="true"
-            android:text="Next chapter"
-            android:textAllCaps="false"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp"
-            app:backgroundTint="@color/surface_high"
-            app:cornerRadius="22dp"
-            app:strokeColor="@color/stroke_subtle"
-            app:strokeWidth="1dp" />
+            android:orientation="horizontal">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/stopButton"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="8dp"
-            android:maxLines="1"
-            android:singleLine="true"
-            android:text="Stop reading"
-            android:textAllCaps="false"
-            android:textColor="@color/danger"
-            android:textSize="14sp"
-            app:backgroundTint="@color/surface_high"
-            app:cornerRadius="22dp"
-            app:strokeColor="@color/stroke_subtle"
-            app:strokeWidth="1dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/previousButton"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:minWidth="0dp"
+                android:singleLine="true"
+                android:text="Previous"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="22dp"
+                app:icon="@drawable/ic_arrow_back"
+                app:iconGravity="textStart"
+                app:iconPadding="6dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/nextButton"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:minWidth="0dp"
+                android:singleLine="true"
+                android:text="Next"
+                android:textAllCaps="false"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="22dp"
+                app:icon="@drawable/ic_arrow_forward"
+                app:iconGravity="textEnd"
+                app:iconPadding="6dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/stopButton"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="0.78"
+                android:maxLines="1"
+                android:minWidth="0dp"
+                android:singleLine="true"
+                android:text="Stop"
+                android:textAllCaps="false"
+                android:textColor="@color/danger"
+                android:textSize="13sp"
+                app:backgroundTint="@color/surface_high"
+                app:cornerRadius="22dp"
+                app:strokeColor="@color/stroke_subtle"
+                app:strokeWidth="1dp" />
+        </LinearLayout>
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

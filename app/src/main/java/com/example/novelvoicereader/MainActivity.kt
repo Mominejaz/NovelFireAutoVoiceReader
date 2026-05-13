@@ -1,8 +1,16 @@
 package com.example.novelvoicereader
 
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -11,6 +19,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.InputType
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.webkit.WebChromeClient
@@ -22,6 +31,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -29,6 +40,9 @@ import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.example.novelvoicereader.data.ChapterPrefsRepository
 import com.example.novelvoicereader.data.DirectChapterFetcher
 import com.example.novelvoicereader.data.WebContentBlocker
@@ -38,11 +52,11 @@ import com.example.novelvoicereader.domain.model.SleepTimer
 import com.example.novelvoicereader.domain.repository.ChapterRepository
 import com.example.novelvoicereader.domain.usecase.GetCurrentChapterUseCase
 import com.example.novelvoicereader.domain.usecase.GetLibraryUseCase
+import com.example.novelvoicereader.domain.usecase.RemoveChapterFromLibraryUseCase
 import com.example.novelvoicereader.domain.usecase.SaveChapterToLibraryUseCase
 import com.example.novelvoicereader.domain.usecase.SaveCurrentChapterUseCase
 import org.json.JSONObject
 import java.util.Locale
-import java.util.UUID
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -60,22 +74,27 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var urlInput: EditText
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
+    private lateinit var previousButton: Button
     private lateinit var nextButton: Button
     private lateinit var saveButton: Button
     private lateinit var libraryButton: Button
     private lateinit var voiceButton: Button
+    private lateinit var moreButton: Button
     private lateinit var timerButton: Button
+    private lateinit var speedButton: Button
     private lateinit var downloadButton: Button
     private lateinit var readerModeButton: Button
     private lateinit var playPauseButton: Button
     private lateinit var miniPlayPauseButton: Button
     private lateinit var collapsePlayerButton: Button
-    private lateinit var expandPlayerButton: Button
     private lateinit var skipBackButton: Button
     private lateinit var skipForwardButton: Button
     private lateinit var skipForward60Button: Button
+    private lateinit var miniSkipBackButton: Button
+    private lateinit var miniSkipForwardButton: Button
     private lateinit var miniPlayerControls: View
     private lateinit var playbackControls: View
+    private lateinit var chapterNavControls: View
     private lateinit var playerPanel: View
     private lateinit var tts: TextToSpeech
     private lateinit var prefs: SharedPreferences
@@ -84,6 +103,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var getLibrary: GetLibraryUseCase
     private lateinit var saveCurrentChapterUseCase: SaveCurrentChapterUseCase
     private lateinit var saveChapterToLibrary: SaveChapterToLibraryUseCase
+    private lateinit var removeChapterFromLibrary: RemoveChapterFromLibraryUseCase
     private val directChapterFetcher = DirectChapterFetcher()
 
     private var chunks: List<String> = emptyList()
@@ -92,16 +112,25 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var currentTitle = "No chapter loaded"
     private var currentText = ""
     private var currentUrl = ""
+    private var currentPreviousChapterUrl: String? = null
+    private var currentNextChapterUrl: String? = null
     private var isPlaying = false
     private var userIsDraggingSeekBar = false
     private var ttsReady = false
     private var autoContinue = true
+    private var suppressNextBrowserExtraction = false
     private var playerCollapsed = false
     private var readerModeEnabled = false
     private var sleepTimer: SleepTimer = SleepTimer.Off
     private var remainingTimerChapters = 0
     private val sleepTimerHandler = Handler(Looper.getMainLooper())
     private val sleepTimerRunnable = Runnable { stopForSleepTimer() }
+    private val playbackReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != PlaybackService.ACTION_PROGRESS) return
+            handlePlaybackProgress(intent)
+        }
+    }
 
     private val preferredVoiceNames = listOf(
         "river",
@@ -123,11 +152,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         getLibrary = GetLibraryUseCase(chapterRepository)
         saveCurrentChapterUseCase = SaveCurrentChapterUseCase(chapterRepository)
         saveChapterToLibrary = SaveChapterToLibraryUseCase(chapterRepository)
+        removeChapterFromLibrary = RemoveChapterFromLibraryUseCase(chapterRepository)
 
         setContentView(R.layout.activity_main)
+        configureSystemBarSpacing()
         bindViews()
         configureWebView()
         configureControls()
+        requestNotificationPermissionIfNeeded()
+        registerPlaybackReceiver()
 
         tts = TextToSpeech(this, this)
 
@@ -141,6 +174,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         handleIncomingIntent(intent)
     }
 
+    private fun configureSystemBarSpacing() {
+        val root = findViewById<View>(R.id.rootContainer)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(
+                16.dp() + bars.left,
+                48.dp() + bars.top,
+                16.dp() + bars.right,
+                16.dp() + bars.bottom
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+    }
+
+    private fun registerPlaybackReceiver() {
+        ContextCompat.registerReceiver(
+            this,
+            playbackReceiver,
+            IntentFilter(PlaybackService.ACTION_PROGRESS),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
     private fun bindViews() {
         webView = findViewById(R.id.webView)
         readerScrollView = findViewById(R.id.readerScrollView)
@@ -148,17 +211,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         urlInput = findViewById(R.id.urlInput)
         startButton = findViewById(R.id.startButton)
         stopButton = findViewById(R.id.stopButton)
+        previousButton = findViewById(R.id.previousButton)
         nextButton = findViewById(R.id.nextButton)
         saveButton = findViewById(R.id.saveButton)
         libraryButton = findViewById(R.id.libraryButton)
         voiceButton = findViewById(R.id.voiceButton)
+        moreButton = findViewById(R.id.moreButton)
         timerButton = findViewById(R.id.timerButton)
+        speedButton = findViewById(R.id.speedButton)
         downloadButton = findViewById(R.id.downloadButton)
         readerModeButton = findViewById(R.id.readerModeButton)
         collapsePlayerButton = findViewById(R.id.collapsePlayerButton)
-        expandPlayerButton = findViewById(R.id.expandPlayerButton)
         miniPlayerControls = findViewById(R.id.miniPlayerControls)
         playbackControls = findViewById(R.id.playbackControls)
+        chapterNavControls = findViewById(R.id.chapterNavControls)
         playerPanel = findViewById(R.id.playerPanel)
         statusText = findViewById(R.id.statusText)
         chapterTitleText = findViewById(R.id.chapterTitleText)
@@ -172,6 +238,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         skipBackButton = findViewById(R.id.skipBackButton)
         skipForwardButton = findViewById(R.id.skipForwardButton)
         skipForward60Button = findViewById(R.id.skipForward60Button)
+        miniSkipBackButton = findViewById(R.id.miniSkipBackButton)
+        miniSkipForwardButton = findViewById(R.id.miniSkipForwardButton)
     }
 
     private fun configureWebView() {
@@ -227,6 +295,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 if (currentUrl.isNotBlank()) {
                     prefs.edit().putString(KEY_LAST_URL, currentUrl).apply()
                 }
+
+                if (suppressNextBrowserExtraction) {
+                    suppressNextBrowserExtraction = false
+                    statusText.text = "Status: browser loaded"
+                    return
+                }
+
                 statusText.text = "Status: page loaded. Extracting chapter..."
 
                 if (autoContinue) {
@@ -252,7 +327,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         stopButton.setOnClickListener {
             autoContinue = false
-            tts.stop()
+            stopPlaybackService()
             isPlaying = false
             setPlaybackButtonText("Play")
             saveCurrentChapter()
@@ -261,6 +336,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         nextButton.setOnClickListener {
             goToNextChapter()
+        }
+
+        previousButton.setOnClickListener {
+            goToPreviousChapter()
         }
 
         saveButton.setOnClickListener {
@@ -276,26 +355,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             showVoicePicker()
         }
 
-        collapsePlayerButton.setOnClickListener {
-            setPlayerCollapsed(!playerCollapsed)
+        moreButton.setOnClickListener {
+            showMoreMenu()
         }
 
-        expandPlayerButton.setOnClickListener {
-            setPlayerCollapsed(false)
+        collapsePlayerButton.setOnClickListener {
+            setPlayerCollapsed(!playerCollapsed)
         }
 
         timerButton.setOnClickListener {
             showSleepTimerPicker()
         }
 
+        speedButton.setOnClickListener {
+            showSpeedPicker()
+        }
+
         downloadButton.setOnClickListener {
-            saveCurrentChapter()
-            saveCurrentChapterToLibrary()
-            statusText.text = if (currentText.isBlank()) {
-                "Status: saved URL. Load chapter to download text."
-            } else {
-                "Status: chapter downloaded for offline listening"
-            }
+            showDownloadPicker()
         }
 
         readerModeButton.setOnClickListener {
@@ -326,6 +403,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         skipBackButton.setOnClickListener { skipChunks(-2) }
         skipForwardButton.setOnClickListener { skipChunks(2) }
         skipForward60Button.setOnClickListener { skipChunks(8) }
+        miniSkipBackButton.setOnClickListener { skipChunks(-2) }
+        miniSkipForwardButton.setOnClickListener { skipChunks(2) }
 
         audioSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -345,7 +424,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 userIsDraggingSeekBar = false
 
                 if (chunks.isNotEmpty()) {
-                    tts.stop()
                     isPlaying = true
                     speakCurrentChunk()
                 }
@@ -353,6 +431,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         })
 
         setPlaybackButtonText("Play")
+        updateSpeedButton()
         setPlayerCollapsed(prefs.getBoolean(KEY_PLAYER_COLLAPSED, false))
         updatePlayerProgress()
     }
@@ -368,7 +447,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         chapterProgressBar.visibility = expandedVisibility
         audioSeekBar.visibility = expandedVisibility
         playbackControls.visibility = expandedVisibility
-        nextButton.visibility = expandedVisibility
+        chapterNavControls.visibility = expandedVisibility
         stopButton.visibility = expandedVisibility
         miniPlayerControls.visibility = miniVisibility
         collapsePlayerButton.text = if (collapsed) "Show" else "Hide"
@@ -384,6 +463,135 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         miniPlayPauseButton.text = text
     }
 
+    private fun showMoreMenu() {
+        PopupMenu(this, moreButton).apply {
+            menu.add("Timer").setOnMenuItemClickListener {
+                showSleepTimerPicker()
+                true
+            }
+            menu.add("Speed: ${prefs.getFloat(KEY_SPEECH_RATE, 1.0f).speedLabel()}").setOnMenuItemClickListener {
+                showSpeedPicker()
+                true
+            }
+            menu.add("Queue chapters").setOnMenuItemClickListener {
+                showDownloadPicker()
+                true
+            }
+            menu.add("Reader text size").setOnMenuItemClickListener {
+                showReaderTextSizePicker()
+                true
+            }
+            menu.add("Share chapter").setOnMenuItemClickListener {
+                shareCurrentChapter()
+                true
+            }
+            menu.add(if (readerModeEnabled) "Open browser" else "Open reader").setOnMenuItemClickListener {
+                if (currentText.isBlank()) {
+                    showReaderMode(false)
+                    statusText.text = "Status: reader mode needs extracted chapter text"
+                } else {
+                    showReaderMode(!readerModeEnabled)
+                }
+                true
+            }
+            menu.add("How to use").setOnMenuItemClickListener {
+                showHowToUsePage()
+                true
+            }
+            menu.add("About app").setOnMenuItemClickListener {
+                showAboutPage()
+                true
+            }
+            show()
+        }
+    }
+
+    private fun showHowToUsePage() {
+        showInfoPage(
+            title = "How to use",
+            intro = "A quick guide for turning a novel chapter into clean, listenable audio.",
+            sections = listOf(
+                "Start reading" to "Paste a chapter URL, then tap Read. The app extracts the chapter text, switches to reader mode, and starts playback.",
+                "Control playback" to "Use Play/Pause, the progress slider, and the -15, +15, +60 controls to move through the chapter. Hide the player when you want more reading space.",
+                "Chapters" to "Use Previous and Next from the bottom player. The app looks for real chapter links first, then falls back to changing the chapter number in the URL.",
+                "Queue offline chapters" to "Open More, choose Queue chapters, then save the current chapter or preload the next 5 to 25 chapters for later.",
+                "Reader comfort" to "Open More, choose Reader text size, and pick the size that feels best for long sessions.",
+                "Share a chapter" to "Open More, choose Share chapter, and send the current link to another app.",
+                "Voice and speed" to "Open More for speed, or tap Voice to choose a text-to-speech voice. River is preferred when it is installed on the phone.",
+                "Screen off listening" to "Playback runs through a foreground playback service, so the loaded chapter can keep playing while the screen is locked."
+            )
+        )
+    }
+
+    private fun showAboutPage() {
+        showInfoPage(
+            title = "About Novel Voice Reader",
+            intro = "Novel Voice Reader is built for long-form web fiction: less browser clutter, more listening, and a calmer reading surface.",
+            sections = listOf(
+                "What it is for" to "Light novels, web novels, serial fiction, long articles, and saved chapters you want to listen to hands-free.",
+                "What makes it useful" to "Clean chapter extraction, reader mode, saved library chapters, queue preloading, sleep timers, speed control, sharing, adjustable text, and background playback for the current chapter.",
+                "Current limits" to "Some sites hide chapter text or navigation behind scripts. Those may still need browser mode or site-specific extraction improvements.",
+                "Next level ideas" to "A real background queue, website compatibility presets, export/share options, richer library organization, and a signed release build for testers.",
+                "Version" to "1.0"
+            )
+        )
+    }
+
+    private fun showInfoPage(
+        title: String,
+        intro: String,
+        sections: List<Pair<String, String>>
+    ) {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(22.dp(), 20.dp(), 22.dp(), 10.dp())
+        }
+
+        content.addView(TextView(this).apply {
+            text = title
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            textSize = 20f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            includeFontPadding = false
+        })
+
+        content.addView(TextView(this).apply {
+            text = intro
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            textSize = 14f
+            setLineSpacing(4.dp().toFloat(), 1f)
+            setPadding(0, 10.dp(), 0, 8.dp())
+        })
+
+        sections.forEach { (heading, body) ->
+            content.addView(TextView(this).apply {
+                text = heading
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.accent_strong))
+                textSize = 14f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                includeFontPadding = false
+                setPadding(0, 14.dp(), 0, 4.dp())
+            })
+
+            content.addView(TextView(this).apply {
+                text = body
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+                textSize = 14f
+                setLineSpacing(4.dp().toFloat(), 1f)
+            })
+        }
+
+        val scroller = ScrollView(this).apply {
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.surface))
+            addView(content)
+        }
+
+        AlertDialog.Builder(this)
+            .setView(scroller)
+            .setPositiveButton("Done", null)
+            .show()
+    }
+
     private fun showReaderMode(enabled: Boolean) {
         readerModeEnabled = enabled && currentText.isNotBlank()
         readerScrollView.visibility = if (readerModeEnabled) View.VISIBLE else View.GONE
@@ -393,9 +601,27 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (readerModeEnabled) {
             updateReaderText()
             setPlayerCollapsed(true)
-        } else if (webView.url.isNullOrBlank()) {
-            statusText.text = "Status: browser ready. Tap Read to reload the page."
+        } else {
+            openCurrentChapterInBrowserIfNeeded()
         }
+    }
+
+    private fun openCurrentChapterInBrowserIfNeeded() {
+        val url = currentUrl.ifBlank { urlInput.text.toString().trim() }
+        if (url.isBlank()) {
+            statusText.text = "Status: browser ready. Paste a URL to load a page."
+            return
+        }
+
+        val loadedUrl = webView.url.orEmpty()
+        if (loadedUrl == url) {
+            statusText.text = "Status: browser open"
+            return
+        }
+
+        suppressNextBrowserExtraction = true
+        webView.loadUrl(url)
+        statusText.text = "Status: opening browser page..."
     }
 
     private fun updateReaderText() {
@@ -404,14 +630,28 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        readerTextView.textSize = prefs.getFloat(KEY_READER_TEXT_SIZE, DEFAULT_READER_TEXT_SIZE)
         val spannable = SpannableString(currentText)
+        var activeRange: IntRange? = null
         if (chunkRanges.isNotEmpty()) {
-            val range = chunkRanges[currentChunkIndex.coerceIn(0, chunkRanges.lastIndex)]
-            if (range.first >= 0 && range.last < currentText.length) {
-                val start = range.first
-                val end = (range.last + 1).coerceAtMost(currentText.length)
+            val activeIndex = currentChunkIndex.coerceIn(0, chunkRanges.lastIndex)
+            activeRange = chunkRanges[activeIndex]
+            val passageRange = readingPassageRange(activeIndex)
+
+            if (passageRange != null) {
                 spannable.setSpan(
-                    BackgroundColorSpan(Color.parseColor("#2A303B")),
+                    BackgroundColorSpan(Color.parseColor("#202A38")),
+                    passageRange.first,
+                    (passageRange.last + 1).coerceAtMost(currentText.length),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+
+            if (activeRange.first >= 0 && activeRange.last < currentText.length) {
+                val start = activeRange.first
+                val end = (activeRange.last + 1).coerceAtMost(currentText.length)
+                spannable.setSpan(
+                    BackgroundColorSpan(Color.parseColor("#34445D")),
                     start,
                     end,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -427,60 +667,93 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         readerTextView.text = spannable
 
-        if (chunks.isNotEmpty()) {
-            val percent = currentChunkIndex.toFloat() / chunks.size.toFloat()
-            readerScrollView.post {
-                val maxScroll = (readerTextView.height - readerScrollView.height).coerceAtLeast(0)
-                readerScrollView.smoothScrollTo(0, (maxScroll * percent).toInt())
-            }
+        if (chunks.isNotEmpty() && activeRange != null) {
+            scrollReaderToActiveRange(activeRange)
         }
+    }
+
+    private fun readingPassageRange(activeIndex: Int): IntRange? {
+        if (chunkRanges.isEmpty()) return null
+
+        val startIndex = (activeIndex - 1).coerceAtLeast(0)
+        val endIndex = (activeIndex + 1).coerceAtMost(chunkRanges.lastIndex)
+        val start = chunkRanges[startIndex].first.coerceAtLeast(0)
+        val end = chunkRanges[endIndex].last.coerceAtMost(currentText.lastIndex)
+        return if (start <= end) start..end else null
+    }
+
+    private fun scrollReaderToActiveRange(activeRange: IntRange) {
+        readerScrollView.post {
+            val layout = readerTextView.layout
+            val maxScroll = (readerTextView.height - readerScrollView.height).coerceAtLeast(0)
+            val targetScroll = if (layout != null && activeRange.first in currentText.indices) {
+                val line = layout.getLineForOffset(activeRange.first)
+                val lineTop = layout.getLineTop(line)
+                (lineTop - readerScrollView.height / 3).coerceIn(0, maxScroll)
+            } else {
+                val percent = currentChunkIndex.toFloat() / chunks.size.toFloat()
+                (maxScroll * percent).toInt()
+            }
+
+            readerScrollView.smoothScrollTo(0, targetScroll)
+        }
+    }
+
+    private fun showReaderTextSizePicker() {
+        val sizes = floatArrayOf(16f, 18f, 20f, 22f, 24f)
+        val labels = arrayOf("Compact", "Comfortable", "Large", "Extra large", "Huge")
+        val savedSize = prefs.getFloat(KEY_READER_TEXT_SIZE, DEFAULT_READER_TEXT_SIZE)
+        val checkedIndex = sizes.indexOfFirst { kotlin.math.abs(it - savedSize) < 0.1f }
+
+        AlertDialog.Builder(this)
+            .setTitle("Reader text size")
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                prefs.edit().putFloat(KEY_READER_TEXT_SIZE, sizes[which]).apply()
+                readerTextView.textSize = sizes[which]
+                if (readerModeEnabled) updateReaderText()
+                statusText.text = "Status: reader text set to ${labels[which].lowercase(Locale.US)}"
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun shareCurrentChapter() {
+        val url = currentUrl.ifBlank { urlInput.text.toString().trim() }
+        if (url.isBlank()) {
+            statusText.text = "Status: no chapter link to share"
+            return
+        }
+
+        val title = currentTitle.takeIf { it.isNotBlank() && it != "No chapter loaded" }
+            ?: "Novel Voice Reader chapter"
+        val shareText = "$title\n$url"
+
+        getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText(title, url))
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+
+        startActivity(Intent.createChooser(intent, "Share chapter"))
+        statusText.text = "Status: chapter link copied and ready to share"
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts.language = Locale.US
             applySavedOrPreferredVoice()
-            tts.setSpeechRate(prefs.getFloat(KEY_SPEECH_RATE, 0.98f))
+            tts.setSpeechRate(prefs.getFloat(KEY_SPEECH_RATE, 1.0f))
             tts.setPitch(1.0f)
             ttsReady = true
 
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) = Unit
-
-                override fun onDone(utteranceId: String?) {
-                    runOnUiThread {
-                        if (!isPlaying) return@runOnUiThread
-
-                        currentChunkIndex += 1
-                        updatePlayerProgress()
-                        saveCurrentChapter()
-
-                        if (currentChunkIndex >= chunks.size) {
-                            isPlaying = false
-                            setPlaybackButtonText("Play")
-                            statusText.text = "Status: chapter finished"
-                            saveCurrentChapterToLibrary(silent = true)
-
-                            if (onChapterFinishedForSleepTimer()) {
-                                return@runOnUiThread
-                            }
-
-                            if (autoContinue) {
-                                goToNextChapter()
-                            }
-                        } else {
-                            speakCurrentChunk()
-                        }
-                    }
-                }
-
-                override fun onError(utteranceId: String?) {
-                    runOnUiThread {
-                        statusText.text = "Status: TTS error"
-                        isPlaying = false
-                        setPlaybackButtonText("Play")
-                    }
-                }
+                override fun onDone(utteranceId: String?) = Unit
+                override fun onError(utteranceId: String?) = Unit
             })
         } else {
             statusText.text = "Status: TTS failed to start"
@@ -592,7 +865,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun setSleepTimer(timer: SleepTimer) {
         sleepTimer = timer
-        timerButton.text = timer.label()
+        timerButton.text = timer.shortLabel()
         sleepTimerHandler.removeCallbacks(sleepTimerRunnable)
 
         when (timer) {
@@ -616,11 +889,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun stopForSleepTimer() {
         autoContinue = false
-        tts.stop()
+        stopPlaybackService()
         isPlaying = false
         setPlaybackButtonText("Play")
         sleepTimer = SleepTimer.Off
-        timerButton.text = sleepTimer.label()
+        timerButton.text = sleepTimer.shortLabel()
         saveCurrentChapter()
         statusText.text = "Status: sleep timer stopped playback"
     }
@@ -635,8 +908,76 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return true
         }
 
-        timerButton.text = SleepTimer.Chapters(remainingTimerChapters).label()
+        timerButton.text = SleepTimer.Chapters(remainingTimerChapters).shortLabel()
         return false
+    }
+
+    private fun showSpeedPicker() {
+        val speeds = floatArrayOf(0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
+        val labels = speeds.map { it.speedLabel() }.toTypedArray()
+        val savedSpeed = prefs.getFloat(KEY_SPEECH_RATE, 1.0f)
+        val checkedIndex = speeds.indexOfFirst { kotlin.math.abs(it - savedSpeed) < 0.01f }
+
+        AlertDialog.Builder(this)
+            .setTitle("Reading speed")
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                setSpeechSpeed(speeds[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun setSpeechSpeed(speed: Float) {
+        prefs.edit().putFloat(KEY_SPEECH_RATE, speed).apply()
+        if (ttsReady) {
+            tts.setSpeechRate(speed)
+        }
+        updateSpeedButton()
+        statusText.text = "Status: reading speed set to ${speed.speedLabel()}"
+
+        if (isPlaying) {
+            speakCurrentChunk()
+        }
+    }
+
+    private fun handlePlaybackProgress(intent: Intent) {
+        currentChunkIndex = intent.getIntExtra(PlaybackService.EXTRA_INDEX, currentChunkIndex)
+            .coerceIn(0, (chunks.size - 1).coerceAtLeast(0))
+        isPlaying = intent.getBooleanExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
+
+        val stopped = intent.getBooleanExtra(PlaybackService.EXTRA_STOPPED, false)
+        val finished = intent.getBooleanExtra(PlaybackService.EXTRA_FINISHED, false)
+        val error = intent.getBooleanExtra(PlaybackService.EXTRA_ERROR, false)
+
+        if (error) {
+            isPlaying = false
+            setPlaybackButtonText("Play")
+            statusText.text = "Status: background playback error"
+        } else if (stopped) {
+            isPlaying = false
+            setPlaybackButtonText("Play")
+            statusText.text = "Status: stopped"
+        } else if (finished) {
+            isPlaying = false
+            setPlaybackButtonText("Play")
+            statusText.text = "Status: chapter finished"
+            saveCurrentChapterToLibrary(silent = true)
+
+            if (!onChapterFinishedForSleepTimer() && autoContinue) {
+                goToNextChapter()
+            }
+        } else {
+            setPlaybackButtonText(if (isPlaying) "Pause" else "Play")
+            statusText.text = if (isPlaying) "Status: reading in background service..." else "Status: paused"
+        }
+
+        updatePlayerProgress()
+        saveCurrentChapter()
+    }
+
+    private fun updateSpeedButton() {
+        speedButton.text = prefs.getFloat(KEY_SPEECH_RATE, 1.0f).speedLabel()
     }
 
     private fun englishVoices(): List<Voice> {
@@ -732,8 +1073,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     if (markerIndex !== -1 && markerIndex < endIndex) endIndex = markerIndex;
                 }
 
+                function linkFor(direction) {
+                    var selector = direction === 'next'
+                        ? 'a[rel="next"], a.next, .next a, .nav-next a'
+                        : 'a[rel="prev"], a[rel="previous"], a.prev, .prev a, .previous a, .nav-previous a';
+                    var direct = document.querySelector(selector);
+                    if (direct && direct.href) return direct.href;
+
+                    var labels = direction === 'next'
+                        ? ['next chapter', 'next']
+                        : ['previous chapter', 'previous', 'prev'];
+                    var anchors = Array.prototype.slice.call(document.querySelectorAll('a[href]'));
+                    for (var j = 0; j < anchors.length; j++) {
+                        var linkText = cleanText((anchors[j].innerText || '') + ' ' + (anchors[j].title || '') + ' ' + (anchors[j].getAttribute('aria-label') || '')).toLowerCase();
+                        for (var k = 0; k < labels.length; k++) {
+                            if (linkText.indexOf(labels[k]) !== -1) return anchors[j].href;
+                        }
+                    }
+                    return '';
+                }
+
                 var chapterText = cleanText(fullText.substring(Math.max(startIndex, 0), endIndex));
-                return JSON.stringify({ title: title, text: chapterText });
+                return JSON.stringify({
+                    title: title,
+                    text: chapterText,
+                    previousUrl: linkFor('previous'),
+                    nextUrl: linkFor('next')
+                });
             })();
         """.trimIndent()
 
@@ -757,6 +1123,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 currentTitle = title
                 currentText = text
                 currentUrl = webView.url ?: urlInput.text.toString().trim()
+                currentPreviousChapterUrl = json.optString("previousUrl").takeIf { it.isNotBlank() }
+                currentNextChapterUrl = json.optString("nextUrl").takeIf { it.isNotBlank() }
                 statusText.text = "Status: extracted ${text.length} characters"
                 prepareChunks(text, resetPosition = true)
                 saveCurrentChapter()
@@ -807,6 +1175,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         currentTitle = title
         currentText = text
         currentUrl = url
+        currentPreviousChapterUrl = content.previousUrl
+        currentNextChapterUrl = content.nextUrl
         currentChunkIndex = 0
         prepareChunks(text, resetPosition = true)
         saveCurrentChapter()
@@ -823,6 +1193,105 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 statusText.text = "Status: chapter loaded. TTS is still starting."
             }
         }
+    }
+
+    private fun showDownloadPicker() {
+        val options = arrayOf(
+            "Save current chapter",
+            "Custom amount...",
+            "Next 5 chapters",
+            "Next 10 chapters",
+            "Next 15 chapters",
+            "Next 20 chapters",
+            "Next 25 chapters"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Preload chapters")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        saveCurrentChapter()
+                        saveCurrentChapterToLibrary()
+                    }
+                    1 -> showCustomDownloadCountDialog()
+                    else -> preloadFutureChapters((which - 1) * 5)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showCustomDownloadCountDialog() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "1-25"
+            setText("5")
+            selectAll()
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("How many future chapters?")
+            .setView(input)
+            .setPositiveButton("Download") { _, _ ->
+                val count = input.text.toString().toIntOrNull()?.coerceIn(1, 25) ?: 5
+                preloadFutureChapters(count)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun preloadFutureChapters(count: Int) {
+        val startUrl = currentUrl.ifBlank { urlInput.text.toString().trim() }
+        if (startUrl.isBlank()) {
+            statusText.text = "Status: paste or load a chapter URL first"
+            return
+        }
+
+        statusText.text = "Status: preloading next $count chapter(s)..."
+
+        Thread {
+            var nextUrl = currentNextChapterUrl ?: getChapterUrl(startUrl, 1)
+            var saved = 0
+            var failed = 0
+
+            repeat(count.coerceIn(1, 25)) {
+                if (nextUrl.isBlank()) {
+                    failed += 1
+                    return@repeat
+                }
+
+                directChapterFetcher.fetch(nextUrl)
+                    .onSuccess { content ->
+                        val title = content.title.ifBlank { nextUrl }
+                        val text = normalizeChapterText(content.text, title)
+                        if (text.isNotBlank()) {
+                            saveChapterToLibrary(
+                                Chapter(
+                                    url = nextUrl,
+                                    title = title,
+                                    text = text,
+                                    chunkIndex = 0,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                            saved += 1
+                            nextUrl = content.nextUrl ?: getChapterUrl(nextUrl, 1)
+                        } else {
+                            failed += 1
+                            nextUrl = getChapterUrl(nextUrl, 1)
+                        }
+                    }
+                    .onFailure {
+                        failed += 1
+                        nextUrl = getChapterUrl(nextUrl, 1)
+                    }
+            }
+
+            runOnUiThread {
+                statusText.text = "Status: preloaded $saved chapter(s), $failed failed"
+            }
+        }.start()
     }
 
     private fun unpackJavascriptString(result: String): String {
@@ -889,32 +1358,48 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun goToNextChapter() {
-        tts.stop()
+        goToRelativeChapter(1)
+    }
+
+    private fun goToPreviousChapter() {
+        goToRelativeChapter(-1)
+    }
+
+    private fun goToRelativeChapter(offset: Int) {
+        stopPlaybackService()
         isPlaying = false
         currentChunkIndex = 0
         chunks = emptyList()
         updatePlayerProgress()
 
-        val sourceUrl = webView.url ?: currentUrl.ifBlank { urlInput.text.toString().trim() }
+        val sourceUrl = currentUrl.ifBlank { webView.url ?: urlInput.text.toString().trim() }
         if (sourceUrl.isBlank()) {
             statusText.text = "Status: no current URL found"
             return
         }
 
-        val nextChapterUrl = getNextChapterUrl(sourceUrl)
-        if (nextChapterUrl == sourceUrl) {
-            statusText.text = "Status: could not calculate next chapter URL"
+        val targetChapterUrl = if (offset > 0) {
+            currentNextChapterUrl ?: getChapterUrl(sourceUrl, offset)
+        } else {
+            currentPreviousChapterUrl ?: getChapterUrl(sourceUrl, offset)
+        }
+        if (targetChapterUrl == sourceUrl) {
+            statusText.text = "Status: could not calculate ${if (offset > 0) "next" else "previous"} chapter URL"
             return
         }
 
-        currentUrl = nextChapterUrl
-        urlInput.setText(nextChapterUrl)
-        statusText.text = "Status: loading next chapter..."
+        currentUrl = targetChapterUrl
+        urlInput.setText(targetChapterUrl)
+        statusText.text = "Status: loading ${if (offset > 0) "next" else "previous"} chapter..."
         autoContinue = true
-        fetchChapterDirectly(nextChapterUrl, speakAfterLoad = true)
+        fetchChapterDirectly(targetChapterUrl, speakAfterLoad = true)
     }
 
     private fun getNextChapterUrl(sourceUrl: String): String {
+        return getChapterUrl(sourceUrl, 1)
+    }
+
+    private fun getChapterUrl(sourceUrl: String, offset: Int): String {
         val patterns = listOf(
             Regex("chapter-(\\d+)"),
             Regex("chapter/(\\d+)"),
@@ -926,14 +1411,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         for (regex in patterns) {
             val match = regex.find(sourceUrl) ?: continue
             val chapterNumber = match.groupValues[1].toIntOrNull() ?: continue
-            return sourceUrl.replaceRange(match.groups[1]!!.range, (chapterNumber + 1).toString())
+            val targetNumber = (chapterNumber + offset).coerceAtLeast(1)
+            return sourceUrl.replaceRange(match.groups[1]!!.range, targetNumber.toString())
         }
 
         return sourceUrl
     }
 
     private fun prepareChunks(text: String, resetPosition: Boolean) {
-        tts.stop()
+        if (!isPlaying) {
+            tts.stop()
+        }
         val sentenceRegex = Regex("""(?s)\S.+?(?:[.!?]+["')\]]*|\n\n|$)""")
         val matches = sentenceRegex.findAll(text).toList()
         chunks = matches
@@ -955,11 +1443,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun speakCurrentChunk() {
-        if (!ttsReady) {
-            statusText.text = "Status: TTS not ready yet"
-            return
-        }
-
         if (chunks.isEmpty()) {
             statusText.text = "Status: no chapter loaded"
             isPlaying = false
@@ -982,15 +1465,23 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Status: reading chapter..."
         updatePlayerProgress()
         saveCurrentChapter()
-
-        val utteranceId = "chunk_${UUID.randomUUID()}"
-        tts.speak(chunks[currentChunkIndex], TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        ContextCompat.startForegroundService(
+            this,
+            PlaybackService.startIntent(
+                context = this,
+                title = currentTitle.ifBlank { "Novel Voice Reader" },
+                chunks = ArrayList(chunks),
+                index = currentChunkIndex,
+                rate = prefs.getFloat(KEY_SPEECH_RATE, 1.0f),
+                voiceName = prefs.getString(KEY_SELECTED_VOICE, null)
+            )
+        )
     }
 
     private fun pauseSpeech() {
         if (!isPlaying) return
 
-        tts.stop()
+        sendPlaybackAction(PlaybackService.ACTION_PAUSE)
         isPlaying = false
         setPlaybackButtonText("Play")
         saveCurrentChapter()
@@ -1018,13 +1509,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        tts.stop()
+        stopPlaybackService()
         currentChunkIndex = (currentChunkIndex + amount).coerceIn(0, chunks.size - 1)
         statusText.text = if (amount > 0) "Status: skipped forward" else "Status: skipped back"
         updatePlayerProgress()
         saveCurrentChapter()
 
         if (isPlaying) speakCurrentChunk()
+    }
+
+    private fun sendPlaybackAction(action: String) {
+        startService(Intent(this, PlaybackService::class.java).setAction(action))
+    }
+
+    private fun stopPlaybackService() {
+        sendPlaybackAction(PlaybackService.ACTION_STOP)
     }
 
     private fun updatePlayerProgress() {
@@ -1138,7 +1637,32 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setTitle("Library")
             .setItems(labels) { _, which ->
                 val item = items[which]
-                loadLibraryItem(item)
+                showLibraryItemActions(item)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showLibraryItemActions(item: Chapter) {
+        AlertDialog.Builder(this)
+            .setTitle(item.title.ifBlank { item.url })
+            .setItems(arrayOf("Open", "Remove saved chapter")) { _, which ->
+                when (which) {
+                    0 -> loadLibraryItem(item)
+                    1 -> confirmRemoveLibraryItem(item)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun confirmRemoveLibraryItem(item: Chapter) {
+        AlertDialog.Builder(this)
+            .setTitle("Remove chapter?")
+            .setMessage(item.title.ifBlank { item.url })
+            .setPositiveButton("Remove") { _, _ ->
+                removeChapterFromLibrary(item.url)
+                statusText.text = "Status: removed saved chapter"
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -1170,9 +1694,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onDestroy() {
         sleepTimerHandler.removeCallbacks(sleepTimerRunnable)
         saveCurrentChapter()
+        runCatching { unregisterReceiver(playbackReceiver) }
         tts.stop()
         tts.shutdown()
         super.onDestroy()
+    }
+
+    private fun SleepTimer.shortLabel(): String {
+        return when (this) {
+            SleepTimer.Off -> "Timer"
+            is SleepTimer.Minutes -> "${value}m"
+            is SleepTimer.Chapters -> "${value} ch"
+        }
+    }
+
+    private fun Int.dp(): Int {
+        return (this * resources.displayMetrics.density).toInt()
+    }
+
+    private fun Float.speedLabel(): String {
+        return if (this % 1.0f == 0f) {
+            "${this.toInt()}x"
+        } else {
+            "${this}x"
+        }
     }
 
     companion object {
@@ -1180,5 +1725,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val KEY_SELECTED_VOICE = "selected_voice"
         private const val KEY_SPEECH_RATE = "speech_rate"
         private const val KEY_PLAYER_COLLAPSED = "player_collapsed"
+        private const val KEY_READER_TEXT_SIZE = "reader_text_size"
+        private const val DEFAULT_READER_TEXT_SIZE = 18f
+        private const val REQUEST_NOTIFICATIONS = 42
     }
 }

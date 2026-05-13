@@ -53,6 +53,15 @@ class ChapterPrefsRepository(
         prefs.edit().putString(KEY_LIBRARY, updated.toString()).apply()
     }
 
+    override fun removeFromLibrary(url: String) {
+        val updated = JSONArray()
+        getLibrary()
+            .filterNot { it.url == url }
+            .forEach { updated.put(it.toJson()) }
+
+        prefs.edit().putString(KEY_LIBRARY, updated.toString()).apply()
+    }
+
     private fun libraryArray(): JSONArray {
         return try {
             JSONArray(prefs.getString(KEY_LIBRARY, "[]"))
