@@ -835,9 +835,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun openTtsSettings() {
         val ttsSettingsIntent = Intent("com.android.settings.TTS_SETTINGS")
-        if (ttsSettingsIntent.resolveActivity(packageManager) != null) {
+        runCatching {
             startActivity(ttsSettingsIntent)
-        } else {
+        }.onFailure {
             startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
         }
     }
@@ -1158,9 +1158,25 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                     .onFailure { error ->
                         statusText.text = "Status: lightweight reader failed: ${error.message ?: "could not extract text"}"
+                        loadBrowserForExtraction(url)
                     }
             }
         }.start()
+    }
+
+    private fun loadBrowserForExtraction(url: String) {
+        if (url.isBlank()) return
+
+        readerModeEnabled = false
+        readerScrollView.visibility = View.GONE
+        webView.visibility = View.VISIBLE
+        readerModeButton.text = "Reader"
+        currentUrl = url
+        urlInput.setText(url)
+        autoContinue = true
+        suppressNextBrowserExtraction = false
+        statusText.text = "Status: trying browser extractor..."
+        webView.loadUrl(url)
     }
 
     private fun applyFetchedChapter(url: String, content: ChapterContent, speakAfterLoad: Boolean) {
@@ -1350,11 +1366,37 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 !Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).containsMatchIn(line)
         }.let { if (it == -1) 0 else it }
 
-        return filteredLines
-            .drop(proseStart)
+        val proseLines = filteredLines.drop(proseStart)
+        val contentLines = proseLines.takeUntilChapterFooter()
+
+        return contentLines
             .joinToString("\n\n")
             .replace(Regex("\n{3,}"), "\n\n")
             .trim()
+    }
+
+    private fun List<String>.takeUntilChapterFooter(): List<String> {
+        val footerIndex = indexOfFirst { it.isChapterFooterMarker() }
+        return if (footerIndex == -1) this else take(footerIndex)
+    }
+
+    private fun String.isChapterFooterMarker(): Boolean {
+        val lower = lowercase(Locale.US)
+        return lower.startsWith("share to your friends") ||
+            lower.startsWith("advertisement") ||
+            lower.startsWith("tip: you can use left, right keyboard keys") ||
+            lower.startsWith("tap the middle of the screen") ||
+            lower.startsWith("if you find any errors") ||
+            lower == "report" ||
+            lower.startsWith("novel ranking") ||
+            lower.startsWith("latest chapters") ||
+            lower.startsWith("latest novels") ||
+            lower.startsWith("completed novels") ||
+            lower.startsWith("privacy policy") ||
+            lower.startsWith("terms of service") ||
+            lower.startsWith("contact us") ||
+            lower.startsWith("made with") ||
+            lower.startsWith("disclaimer:")
     }
 
     private fun goToNextChapter() {
@@ -1509,13 +1551,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        stopPlaybackService()
+        val shouldResumePlayback = isPlaying
         currentChunkIndex = (currentChunkIndex + amount).coerceIn(0, chunks.size - 1)
         statusText.text = if (amount > 0) "Status: skipped forward" else "Status: skipped back"
         updatePlayerProgress()
         saveCurrentChapter()
 
-        if (isPlaying) speakCurrentChunk()
+        if (shouldResumePlayback) {
+            seekPlaybackService(currentChunkIndex)
+        }
     }
 
     private fun sendPlaybackAction(action: String) {
@@ -1524,6 +1568,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun stopPlaybackService() {
         sendPlaybackAction(PlaybackService.ACTION_STOP)
+    }
+
+    private fun seekPlaybackService(index: Int) {
+        startService(
+            Intent(this, PlaybackService::class.java)
+                .setAction(PlaybackService.ACTION_SEEK)
+                .putExtra(PlaybackService.EXTRA_INDEX, index)
+        )
     }
 
     private fun updatePlayerProgress() {

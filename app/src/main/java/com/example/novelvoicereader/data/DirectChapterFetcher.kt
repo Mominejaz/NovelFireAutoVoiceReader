@@ -203,11 +203,37 @@ class DirectChapterFetcher {
                 !Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).containsMatchIn(line)
         }.let { if (it == -1) 0 else it }
 
-        return lines
-            .drop(proseStart)
+        val proseLines = lines.drop(proseStart)
+        val contentLines = proseLines.takeUntilFooter()
+
+        return contentLines
             .joinToString("\n\n")
             .replace(Regex("\n{3,}"), "\n\n")
             .trim()
+    }
+
+    private fun List<String>.takeUntilFooter(): List<String> {
+        val footerIndex = indexOfFirst { it.isChapterFooterMarker() }
+        return if (footerIndex == -1) this else take(footerIndex)
+    }
+
+    private fun String.isChapterFooterMarker(): Boolean {
+        val lower = lowercase(Locale.US)
+        return lower.startsWith("share to your friends") ||
+            lower.startsWith("advertisement") ||
+            lower.startsWith("tip: you can use left, right keyboard keys") ||
+            lower.startsWith("tap the middle of the screen") ||
+            lower.startsWith("if you find any errors") ||
+            lower == "report" ||
+            lower.startsWith("novel ranking") ||
+            lower.startsWith("latest chapters") ||
+            lower.startsWith("latest novels") ||
+            lower.startsWith("completed novels") ||
+            lower.startsWith("privacy policy") ||
+            lower.startsWith("terms of service") ||
+            lower.startsWith("contact us") ||
+            lower.startsWith("made with") ||
+            lower.startsWith("disclaimer:")
     }
 
     private fun String.wordsForMatching(): Set<String> {

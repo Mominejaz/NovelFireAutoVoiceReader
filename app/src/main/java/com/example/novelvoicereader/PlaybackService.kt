@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -44,9 +43,15 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
             }
             ACTION_PAUSE -> pause()
             ACTION_RESUME -> {
-                startForeground(NOTIFICATION_ID, buildNotification())
-                playWhenReady()
+                if (chunks.isEmpty()) {
+                    sendPlaybackUpdate(error = true)
+                    stopSelf()
+                } else {
+                    startForeground(NOTIFICATION_ID, buildNotification())
+                    playWhenReady()
+                }
             }
+            ACTION_SEEK -> seekTo(intent.getIntExtra(EXTRA_INDEX, currentIndex))
             ACTION_STOP -> stopPlayback()
         }
 
@@ -121,6 +126,21 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
         notificationManager.notify(NOTIFICATION_ID, buildNotification())
     }
 
+    private fun seekTo(index: Int) {
+        currentIndex = index.coerceIn(0, (chunks.size - 1).coerceAtLeast(0))
+        if (!ttsReady || chunks.isEmpty()) {
+            sendPlaybackUpdate(error = chunks.isEmpty())
+            if (chunks.isEmpty()) stopSelf()
+            return
+        }
+
+        isPlaying = true
+        tts.stop()
+        startForeground(NOTIFICATION_ID, buildNotification())
+        sendPlaybackUpdate()
+        speakCurrent()
+    }
+
     private fun stopPlayback() {
         tts.stop()
         isPlaying = false
@@ -192,8 +212,6 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Reading playback",
@@ -214,6 +232,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
         const val ACTION_PLAY = "com.example.novelvoicereader.action.PLAY"
         const val ACTION_PAUSE = "com.example.novelvoicereader.action.PAUSE"
         const val ACTION_RESUME = "com.example.novelvoicereader.action.RESUME"
+        const val ACTION_SEEK = "com.example.novelvoicereader.action.SEEK"
         const val ACTION_STOP = "com.example.novelvoicereader.action.STOP"
         const val ACTION_PROGRESS = "com.example.novelvoicereader.action.PROGRESS"
 
