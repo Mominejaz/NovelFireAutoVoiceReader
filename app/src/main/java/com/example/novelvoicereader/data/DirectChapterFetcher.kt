@@ -173,38 +173,30 @@ class DirectChapterFetcher {
     }
 
     private fun cleanupChapterText(rawText: String, title: String): String {
-        val titleWords = title.wordsForMatching()
+        val normalizedTitle = title.normalizedForComparison()
         val lines = rawText
             .split('\n')
             .map { it.replace(Regex("\\s+"), " ").trim() }
             .filter { it.isNotBlank() }
+            .trimChapterPreamble()
             .filterNot { line ->
                 val lower = line.lowercase(Locale.US)
-                val overlap = if (titleWords.isEmpty()) 0.0 else {
-                    titleWords.intersect(line.wordsForMatching()).size.toDouble() / titleWords.size.toDouble()
-                }
 
                 line.length < 2 ||
                     lower.startsWith("translator:") ||
                     lower.startsWith("editor:") ||
                     lower.startsWith("restore scroll position") ||
-                    lower.contains("table of contents") ||
-                    lower.contains("previous chapter") ||
-                    lower.contains("next chapter") ||
-                    lower.contains("report chapter") ||
-                    lower.contains("chapter list") ||
-                    Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).matches(line) ||
+                    lower == "table of contents" ||
+                    lower == "previous chapter" ||
+                    lower == "next chapter" ||
+                    lower == "report chapter" ||
+                    lower == "chapter list" ||
+                    lower == "advertisement" ||
                     Regex("\\[\\s*[\\d,]+\\s+words\\s*]", RegexOption.IGNORE_CASE).containsMatchIn(line) ||
-                    overlap >= 0.75
+                    (normalizedTitle.isNotBlank() && line.normalizedForComparison() == normalizedTitle)
             }
 
-        val proseStart = lines.indexOfFirst { line ->
-            line.split(Regex("\\s+")).size >= 8 &&
-                !Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).containsMatchIn(line)
-        }.let { if (it == -1) 0 else it }
-
-        val proseLines = lines.drop(proseStart)
-        val contentLines = proseLines.takeUntilFooter()
+        val contentLines = lines.takeUntilFooter()
 
         return contentLines
             .joinToString("\n\n")
@@ -212,19 +204,41 @@ class DirectChapterFetcher {
             .trim()
     }
 
+    private fun List<String>.trimChapterPreamble(): List<String> {
+        val searchLimit = minOf(size, MAX_PREAMBLE_LINES)
+        val headingIndex = take(searchLimit).indexOfLast { it.isChapterHeading() }
+        if (headingIndex == -1) return this
+
+        val heading = this[headingIndex]
+        val headingWithoutChapter = heading
+            .replaceFirst(Regex("^chapter\\s+", RegexOption.IGNORE_CASE), "")
+            .normalizedForComparison()
+
+        return drop(headingIndex + 1).dropWhile { line ->
+            val normalizedLine = line.normalizedForComparison()
+            normalizedLine.isNotBlank() && normalizedLine == headingWithoutChapter
+        }
+    }
+
+    private fun String.isChapterHeading(): Boolean {
+        return length <= MAX_CHAPTER_HEADING_LENGTH &&
+            Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).containsMatchIn(this)
+    }
+
     private fun List<String>.takeUntilFooter(): List<String> {
-        val footerIndex = indexOfFirst { it.isChapterFooterMarker() }
+        val footerIndex = indices.firstOrNull { index ->
+            this[index].isStrongChapterFooterMarker() &&
+                take(index).sumOf { it.length } >= MIN_PROSE_BEFORE_FOOTER
+        } ?: -1
         return if (footerIndex == -1) this else take(footerIndex)
     }
 
-    private fun String.isChapterFooterMarker(): Boolean {
+    private fun String.isStrongChapterFooterMarker(): Boolean {
         val lower = lowercase(Locale.US)
         return lower.startsWith("share to your friends") ||
-            lower.startsWith("advertisement") ||
             lower.startsWith("tip: you can use left, right keyboard keys") ||
             lower.startsWith("tap the middle of the screen") ||
             lower.startsWith("if you find any errors") ||
-            lower == "report" ||
             lower.startsWith("novel ranking") ||
             lower.startsWith("latest chapters") ||
             lower.startsWith("latest novels") ||
@@ -236,12 +250,12 @@ class DirectChapterFetcher {
             lower.startsWith("disclaimer:")
     }
 
-    private fun String.wordsForMatching(): Set<String> {
+    private fun String.normalizedForComparison(): String {
         return lowercase(Locale.US)
             .replace(Regex("[^a-z0-9\\s]"), " ")
             .split(Regex("\\s+"))
-            .filter { it.length > 2 }
-            .toSet()
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
     }
 
     private fun String.decodeHtmlEntities(): String {
@@ -266,4 +280,10 @@ class DirectChapterFetcher {
         val url: String,
         val score: Int
     )
+
+    private companion object {
+        const val MIN_PROSE_BEFORE_FOOTER = 80
+        const val MAX_PREAMBLE_LINES = 20
+        const val MAX_CHAPTER_HEADING_LENGTH = 160
+    }
 }

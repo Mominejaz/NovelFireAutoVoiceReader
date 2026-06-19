@@ -21,7 +21,9 @@ class ChapterPrefsRepository(
             title = title.ifBlank { "No chapter loaded" },
             text = text,
             chunkIndex = prefs.getInt(KEY_CURRENT_CHUNK, 0),
-            updatedAt = prefs.getLong(KEY_CURRENT_UPDATED_AT, System.currentTimeMillis())
+            updatedAt = prefs.getLong(KEY_CURRENT_UPDATED_AT, System.currentTimeMillis()),
+            previousUrl = prefs.getString(KEY_CURRENT_PREVIOUS_URL, null)?.takeIf { it.isNotBlank() },
+            nextUrl = prefs.getString(KEY_CURRENT_NEXT_URL, null)?.takeIf { it.isNotBlank() }
         )
     }
 
@@ -32,6 +34,8 @@ class ChapterPrefsRepository(
             .putString(KEY_CURRENT_TEXT, chapter.text)
             .putInt(KEY_CURRENT_CHUNK, chapter.chunkIndex)
             .putLong(KEY_CURRENT_UPDATED_AT, chapter.updatedAt)
+            .putString(KEY_CURRENT_PREVIOUS_URL, chapter.previousUrl.orEmpty())
+            .putString(KEY_CURRENT_NEXT_URL, chapter.nextUrl.orEmpty())
             .putString(KEY_LAST_URL, chapter.url)
             .apply()
     }
@@ -41,6 +45,13 @@ class ChapterPrefsRepository(
         return (0 until library.length())
             .mapNotNull { library.optJSONObject(it)?.toChapter() }
             .sortedByDescending { it.updatedAt }
+    }
+
+    override fun getLibraryChapter(url: String): Chapter? {
+        val normalizedUrl = url.normalizedUrl()
+        if (normalizedUrl.isBlank()) return null
+
+        return getLibrary().firstOrNull { it.url.normalizedUrl() == normalizedUrl }
     }
 
     override fun saveToLibrary(chapter: Chapter) {
@@ -79,7 +90,9 @@ class ChapterPrefsRepository(
             title = optString("title", url).ifBlank { url },
             text = optString("text"),
             chunkIndex = optInt("chunk", 0),
-            updatedAt = optLong("updatedAt", 0L)
+            updatedAt = optLong("updatedAt", 0L),
+            previousUrl = optString("previousUrl").takeIf { it.isNotBlank() },
+            nextUrl = optString("nextUrl").takeIf { it.isNotBlank() }
         )
     }
 
@@ -90,6 +103,12 @@ class ChapterPrefsRepository(
             .put("text", text)
             .put("chunk", chunkIndex)
             .put("updatedAt", updatedAt)
+            .put("previousUrl", previousUrl.orEmpty())
+            .put("nextUrl", nextUrl.orEmpty())
+    }
+
+    private fun String.normalizedUrl(): String {
+        return trim().trimEnd('/')
     }
 
     companion object {
@@ -99,6 +118,8 @@ class ChapterPrefsRepository(
         private const val KEY_CURRENT_TEXT = "current_text"
         private const val KEY_CURRENT_CHUNK = "current_chunk"
         private const val KEY_CURRENT_UPDATED_AT = "current_updated_at"
+        private const val KEY_CURRENT_PREVIOUS_URL = "current_previous_url"
+        private const val KEY_CURRENT_NEXT_URL = "current_next_url"
         private const val KEY_LIBRARY = "library"
     }
 }

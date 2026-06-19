@@ -51,6 +51,7 @@ import com.example.novelvoicereader.domain.model.ChapterContent
 import com.example.novelvoicereader.domain.model.SleepTimer
 import com.example.novelvoicereader.domain.repository.ChapterRepository
 import com.example.novelvoicereader.domain.usecase.GetCurrentChapterUseCase
+import com.example.novelvoicereader.domain.usecase.GetLibraryChapterUseCase
 import com.example.novelvoicereader.domain.usecase.GetLibraryUseCase
 import com.example.novelvoicereader.domain.usecase.RemoveChapterFromLibraryUseCase
 import com.example.novelvoicereader.domain.usecase.SaveChapterToLibraryUseCase
@@ -100,6 +101,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var prefs: SharedPreferences
     private lateinit var chapterRepository: ChapterRepository
     private lateinit var getCurrentChapter: GetCurrentChapterUseCase
+    private lateinit var getLibraryChapter: GetLibraryChapterUseCase
     private lateinit var getLibrary: GetLibraryUseCase
     private lateinit var saveCurrentChapterUseCase: SaveCurrentChapterUseCase
     private lateinit var saveChapterToLibrary: SaveChapterToLibraryUseCase
@@ -149,6 +151,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         prefs = getSharedPreferences("NovelVoiceReaderPrefs", MODE_PRIVATE)
         chapterRepository = ChapterPrefsRepository(prefs)
         getCurrentChapter = GetCurrentChapterUseCase(chapterRepository)
+        getLibraryChapter = GetLibraryChapterUseCase(chapterRepository)
         getLibrary = GetLibraryUseCase(chapterRepository)
         saveCurrentChapterUseCase = SaveCurrentChapterUseCase(chapterRepository)
         saveChapterToLibrary = SaveChapterToLibraryUseCase(chapterRepository)
@@ -159,6 +162,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         bindViews()
         configureWebView()
         configureControls()
+        configureCompactCoverLayout()
         requestNotificationPermissionIfNeeded()
         registerPlaybackReceiver()
 
@@ -178,11 +182,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val root = findViewById<View>(R.id.rootContainer)
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val compactCover = isCompactCoverScreen()
             view.setPadding(
-                16.dp() + bars.left,
-                48.dp() + bars.top,
-                16.dp() + bars.right,
-                16.dp() + bars.bottom
+                (if (compactCover) 8 else 16).dp() + bars.left,
+                (if (compactCover) 8 else 48).dp() + bars.top,
+                (if (compactCover) 8 else 16).dp() + bars.right,
+                (if (compactCover) 8 else 16).dp() + bars.bottom
             )
             insets
         }
@@ -240,6 +245,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         skipForward60Button = findViewById(R.id.skipForward60Button)
         miniSkipBackButton = findViewById(R.id.miniSkipBackButton)
         miniSkipForwardButton = findViewById(R.id.miniSkipForwardButton)
+    }
+
+    private fun configureCompactCoverLayout() {
+        if (!isCompactCoverScreen()) return
+
+        findViewById<View>(R.id.appHeader).visibility = View.GONE
+        statusText.visibility = View.GONE
+        chapterTitleText.maxLines = 1
+        findViewById<View>(R.id.saveButton).visibility = View.GONE
+        findViewById<View>(R.id.voiceButton).visibility = View.GONE
+        findViewById<View>(R.id.secondaryActionBar).visibility = View.GONE
+
+        findViewById<View>(R.id.urlBar).layoutParams.height = 48.dp()
+        startButton.layoutParams.width = 84.dp()
+        webView.setPadding(0, 0, 0, 0)
+        readerScrollView.setPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
+        readerTextView.textSize = 16f
+
+        setPlayerCollapsed(collapsed = true, persist = false)
+    }
+
+    private fun isCompactCoverScreen(): Boolean {
+        val configuration = resources.configuration
+        return configuration.screenWidthDp <= 480 && configuration.screenHeightDp <= 480
     }
 
     private fun configureWebView() {
@@ -436,9 +465,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         updatePlayerProgress()
     }
 
-    private fun setPlayerCollapsed(collapsed: Boolean) {
+    private fun setPlayerCollapsed(collapsed: Boolean, persist: Boolean = true) {
         playerCollapsed = collapsed
-        prefs.edit().putBoolean(KEY_PLAYER_COLLAPSED, collapsed).apply()
+        if (persist) {
+            prefs.edit().putBoolean(KEY_PLAYER_COLLAPSED, collapsed).apply()
+        }
 
         val expandedVisibility = if (collapsed) View.GONE else View.VISIBLE
         val miniVisibility = if (collapsed) View.VISIBLE else View.GONE
@@ -942,6 +973,23 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun handlePlaybackProgress(intent: Intent) {
+        if (intent.getBooleanExtra(PlaybackService.EXTRA_CHAPTER_CHANGED, false)) {
+            currentUrl = intent.getStringExtra(PlaybackService.EXTRA_URL).orEmpty()
+            currentTitle = intent.getStringExtra(PlaybackService.EXTRA_TITLE).orEmpty().ifBlank { currentTitle }
+            currentText = getCurrentChapter()?.takeIf { it.url.normalizedUrl() == currentUrl.normalizedUrl() }
+                ?.text
+                .orEmpty()
+            currentPreviousChapterUrl = intent.getStringExtra(PlaybackService.EXTRA_PREVIOUS_URL)
+                ?.takeIf { it.isNotBlank() }
+            currentNextChapterUrl = intent.getStringExtra(PlaybackService.EXTRA_NEXT_URL)
+                ?.takeIf { it.isNotBlank() }
+            urlInput.setText(currentUrl)
+            if (currentText.isNotBlank()) {
+                prepareChunks(currentText, resetPosition = false)
+                showReaderMode(true)
+            }
+        }
+
         currentChunkIndex = intent.getIntExtra(PlaybackService.EXTRA_INDEX, currentChunkIndex)
             .coerceIn(0, (chunks.size - 1).coerceAtLeast(0))
         isPlaying = intent.getBooleanExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
@@ -1054,25 +1102,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 if (!title && titleMatch) title = cleanText(titleMatch[0]);
                 if (!title) title = 'Untitled chapter';
 
-                var startIndex = titleMatch ? fullText.indexOf(titleMatch[0]) : 0;
-                var endMarkers = [
-                    'Share to your friends',
-                    'Tip: You can use left, right keyboard keys',
-                    'If you find any errors',
-                    'Report',
-                    'Novel Ranking',
-                    'Latest Chapters',
-                    'Previous Chapter',
-                    'Next Chapter',
-                    'Comments'
-                ];
-
-                var endIndex = fullText.length;
-                for (var i = 0; i < endMarkers.length; i++) {
-                    var markerIndex = fullText.indexOf(endMarkers[i], Math.max(startIndex, 0));
-                    if (markerIndex !== -1 && markerIndex < endIndex) endIndex = markerIndex;
-                }
-
                 function linkFor(direction) {
                     var selector = direction === 'next'
                         ? 'a[rel="next"], a.next, .next a, .nav-next a'
@@ -1093,10 +1122,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     return '';
                 }
 
-                var chapterText = cleanText(fullText.substring(Math.max(startIndex, 0), endIndex));
                 return JSON.stringify({
                     title: title,
-                    text: chapterText,
+                    text: fullText,
                     previousUrl: linkFor('previous'),
                     nextUrl: linkFor('next')
                 });
@@ -1141,6 +1169,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun fetchChapterDirectly(url: String, speakAfterLoad: Boolean) {
         if (url.isBlank()) {
             statusText.text = "Status: paste a chapter URL first"
+            return
+        }
+
+        val cachedChapter = getLibraryChapter(url)
+        if (cachedChapter?.text?.isNotBlank() == true) {
+            loadDownloadedChapter(cachedChapter, speakAfterLoad, "Status: loaded downloaded chapter")
             return
         }
 
@@ -1211,9 +1245,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun loadDownloadedChapter(chapter: Chapter, speakAfterLoad: Boolean, status: String) {
+        stopPlaybackService()
+        currentUrl = chapter.url
+        currentTitle = chapter.title.ifBlank { chapter.url }
+        currentText = normalizeChapterText(chapter.text, currentTitle)
+        currentPreviousChapterUrl = chapter.previousUrl
+        currentNextChapterUrl = chapter.nextUrl
+        currentChunkIndex = if (speakAfterLoad) 0 else chapter.chunkIndex
+        urlInput.setText(currentUrl)
+
+        prepareChunks(currentText, resetPosition = speakAfterLoad)
+        isPlaying = false
+        setPlaybackButtonText("Play")
+        showReaderMode(true)
+        saveCurrentChapter()
+        statusText.text = status
+
+        if (speakAfterLoad) {
+            speakCurrentChunk()
+        }
+    }
+
     private fun showDownloadPicker() {
         val options = arrayOf(
             "Save current chapter",
+            "Manage saved chapters",
+            "Remove all downloaded chapters",
             "Custom amount...",
             "Next 5 chapters",
             "Next 10 chapters",
@@ -1230,9 +1288,29 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         saveCurrentChapter()
                         saveCurrentChapterToLibrary()
                     }
-                    1 -> showCustomDownloadCountDialog()
-                    else -> preloadFutureChapters((which - 1) * 5)
+                    1 -> showLibrary()
+                    2 -> confirmClearDownloadedChapters()
+                    3 -> showCustomDownloadCountDialog()
+                    else -> preloadFutureChapters((which - 3) * 5)
                 }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun confirmClearDownloadedChapters() {
+        val downloaded = getLibrary().filter { it.text.isNotBlank() }
+        if (downloaded.isEmpty()) {
+            statusText.text = "Status: no downloaded chapters to remove"
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Remove downloaded chapters?")
+            .setMessage("This removes ${downloaded.size} saved chapter(s) from offline storage.")
+            .setPositiveButton("Remove") { _, _ ->
+                downloaded.forEach { removeChapterFromLibrary(it.url) }
+                statusText.text = "Status: removed ${downloaded.size} downloaded chapter(s)"
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -1288,7 +1366,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                     title = title,
                                     text = text,
                                     chunkIndex = 0,
-                                    updatedAt = System.currentTimeMillis()
+                                    updatedAt = System.currentTimeMillis(),
+                                    previousUrl = content.previousUrl,
+                                    nextUrl = content.nextUrl
                                 )
                             )
                             saved += 1
@@ -1323,51 +1403,32 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun normalizeChapterText(rawText: String, title: String): String {
-        val titleWords = title
-            .lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9\\s]"), " ")
-            .split(Regex("\\s+"))
-            .filter { it.length > 2 }
-            .toSet()
+        val normalizedTitle = title.normalizedForComparison()
 
         val filteredLines = rawText
             .replace("\r", "\n")
             .split('\n')
             .map { it.replace(Regex("\\s+"), " ").trim() }
             .filter { it.isNotBlank() }
+            .trimChapterPreamble()
             .filterNot { line ->
                 val lower = line.lowercase(Locale.US)
                 val compact = lower.replace(Regex("[^a-z0-9]"), "")
-                val lineWords = lower
-                    .replace(Regex("[^a-z0-9\\s]"), " ")
-                    .split(Regex("\\s+"))
-                    .filter { it.length > 2 }
-                    .toSet()
-                val titleOverlap = if (titleWords.isEmpty()) 0.0 else {
-                    titleWords.intersect(lineWords).size.toDouble() / titleWords.size.toDouble()
-                }
 
                 compact.length < 2 ||
-                    Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).matches(line) ||
                     Regex("\\[\\s*[\\d,]+\\s+words\\s*]", RegexOption.IGNORE_CASE).containsMatchIn(line) ||
                     lower.startsWith("restore scroll position") ||
                     lower.startsWith("translator:") ||
                     lower.startsWith("editor:") ||
-                    lower.contains("table of contents") ||
-                    lower.contains("previous chapter") ||
-                    lower.contains("next chapter") ||
-                    lower.contains("report chapter") ||
-                    titleOverlap >= 0.75
+                    lower == "table of contents" ||
+                    lower == "previous chapter" ||
+                    lower == "next chapter" ||
+                    lower == "report chapter" ||
+                    lower == "advertisement" ||
+                    (normalizedTitle.isNotBlank() && line.normalizedForComparison() == normalizedTitle)
             }
 
-        val proseStart = filteredLines.indexOfFirst { line ->
-            line.split(Regex("\\s+")).size >= 8 &&
-                !line.contains("[") &&
-                !Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).containsMatchIn(line)
-        }.let { if (it == -1) 0 else it }
-
-        val proseLines = filteredLines.drop(proseStart)
-        val contentLines = proseLines.takeUntilChapterFooter()
+        val contentLines = filteredLines.takeUntilChapterFooter()
 
         return contentLines
             .joinToString("\n\n")
@@ -1375,19 +1436,41 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .trim()
     }
 
+    private fun List<String>.trimChapterPreamble(): List<String> {
+        val searchLimit = minOf(size, MAX_PREAMBLE_LINES)
+        val headingIndex = take(searchLimit).indexOfLast { it.isChapterHeading() }
+        if (headingIndex == -1) return this
+
+        val heading = this[headingIndex]
+        val headingWithoutChapter = heading
+            .replaceFirst(Regex("^chapter\\s+", RegexOption.IGNORE_CASE), "")
+            .normalizedForComparison()
+
+        return drop(headingIndex + 1).dropWhile { line ->
+            val normalizedLine = line.normalizedForComparison()
+            normalizedLine.isNotBlank() && normalizedLine == headingWithoutChapter
+        }
+    }
+
+    private fun String.isChapterHeading(): Boolean {
+        return length <= MAX_CHAPTER_HEADING_LENGTH &&
+            Regex("^chapter\\s+\\d+\\b", RegexOption.IGNORE_CASE).containsMatchIn(this)
+    }
+
     private fun List<String>.takeUntilChapterFooter(): List<String> {
-        val footerIndex = indexOfFirst { it.isChapterFooterMarker() }
+        val footerIndex = indices.firstOrNull { index ->
+            this[index].isStrongChapterFooterMarker() &&
+                take(index).sumOf { it.length } >= MIN_PROSE_BEFORE_FOOTER
+        } ?: -1
         return if (footerIndex == -1) this else take(footerIndex)
     }
 
-    private fun String.isChapterFooterMarker(): Boolean {
+    private fun String.isStrongChapterFooterMarker(): Boolean {
         val lower = lowercase(Locale.US)
         return lower.startsWith("share to your friends") ||
-            lower.startsWith("advertisement") ||
             lower.startsWith("tip: you can use left, right keyboard keys") ||
             lower.startsWith("tap the middle of the screen") ||
             lower.startsWith("if you find any errors") ||
-            lower == "report" ||
             lower.startsWith("novel ranking") ||
             lower.startsWith("latest chapters") ||
             lower.startsWith("latest novels") ||
@@ -1398,6 +1481,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             lower.startsWith("made with") ||
             lower.startsWith("disclaimer:")
     }
+
+    private fun String.normalizedForComparison(): String {
+        return lowercase(Locale.US)
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+    }
+
+    private fun String.normalizedUrl(): String = trim().trimEnd('/')
 
     private fun goToNextChapter() {
         goToRelativeChapter(1)
@@ -1512,10 +1605,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             PlaybackService.startIntent(
                 context = this,
                 title = currentTitle.ifBlank { "Novel Voice Reader" },
-                chunks = ArrayList(chunks),
                 index = currentChunkIndex,
                 rate = prefs.getFloat(KEY_SPEECH_RATE, 1.0f),
-                voiceName = prefs.getString(KEY_SELECTED_VOICE, null)
+                voiceName = prefs.getString(KEY_SELECTED_VOICE, null),
+                url = currentUrl,
+                previousUrl = currentPreviousChapterUrl,
+                nextUrl = currentNextChapterUrl,
+                autoContinue = autoContinue
             )
         )
     }
@@ -1620,6 +1716,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         currentTitle = chapter?.title ?: "No chapter loaded"
         currentText = chapter?.text.orEmpty()
         currentChunkIndex = chapter?.chunkIndex ?: 0
+        currentPreviousChapterUrl = chapter?.previousUrl
+        currentNextChapterUrl = chapter?.nextUrl
         if (currentText.isNotBlank()) {
             currentText = normalizeChapterText(currentText, currentTitle)
         }
@@ -1629,11 +1727,19 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         if (currentText.isNotBlank()) {
+            val serviceIsPlaying = PlaybackService.isPlaybackActive
+            if (serviceIsPlaying) {
+                currentChunkIndex = PlaybackService.playbackIndex
+            }
             prepareChunks(currentText, resetPosition = false)
-            isPlaying = false
-            setPlaybackButtonText("Play")
+            isPlaying = serviceIsPlaying
+            setPlaybackButtonText(if (isPlaying) "Pause" else "Play")
             showReaderMode(true)
-            statusText.text = "Status: restored saved chapter"
+            statusText.text = if (isPlaying) {
+                "Status: reading in background service..."
+            } else {
+                "Status: restored saved chapter"
+            }
         } else {
             updatePlayerProgress()
         }
@@ -1649,7 +1755,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 title = currentTitle.ifBlank { "Untitled chapter" },
                 text = currentText,
                 chunkIndex = currentChunkIndex,
-                updatedAt = System.currentTimeMillis()
+                updatedAt = System.currentTimeMillis(),
+                previousUrl = currentPreviousChapterUrl,
+                nextUrl = currentNextChapterUrl
             )
         )
     }
@@ -1667,7 +1775,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 title = currentTitle.ifBlank { url },
                 text = currentText,
                 chunkIndex = currentChunkIndex,
-                updatedAt = System.currentTimeMillis()
+                updatedAt = System.currentTimeMillis(),
+                previousUrl = currentPreviousChapterUrl,
+                nextUrl = currentNextChapterUrl
             )
         )
         if (!silent) statusText.text = "Status: saved to library"
@@ -1721,25 +1831,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun loadLibraryItem(item: Chapter) {
-        currentUrl = item.url
-        currentTitle = item.title
-        currentText = item.text
-        currentChunkIndex = item.chunkIndex
-        if (currentText.isNotBlank()) {
-            currentText = normalizeChapterText(currentText, currentTitle)
-        }
-        urlInput.setText(currentUrl)
-
-        if (currentText.isBlank()) {
+        if (item.text.isBlank()) {
             statusText.text = "Status: loading saved URL..."
-            webView.loadUrl(currentUrl)
+            currentUrl = item.url
+            currentTitle = item.title
+            currentText = item.text
+            currentChunkIndex = item.chunkIndex
+            currentPreviousChapterUrl = item.previousUrl
+            currentNextChapterUrl = item.nextUrl
+            urlInput.setText(currentUrl)
+            fetchChapterDirectly(currentUrl, speakAfterLoad = false)
         } else {
-            prepareChunks(currentText, resetPosition = false)
-            isPlaying = false
-            setPlaybackButtonText("Play")
-            showReaderMode(true)
-            saveCurrentChapter()
-            statusText.text = "Status: loaded from library"
+            loadDownloadedChapter(item, speakAfterLoad = false, status = "Status: loaded from library")
         }
     }
 
@@ -1780,5 +1883,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val KEY_READER_TEXT_SIZE = "reader_text_size"
         private const val DEFAULT_READER_TEXT_SIZE = 18f
         private const val REQUEST_NOTIFICATIONS = 42
+        private const val MIN_PROSE_BEFORE_FOOTER = 80
+        private const val MAX_PREAMBLE_LINES = 20
+        private const val MAX_CHAPTER_HEADING_LENGTH = 160
     }
 }

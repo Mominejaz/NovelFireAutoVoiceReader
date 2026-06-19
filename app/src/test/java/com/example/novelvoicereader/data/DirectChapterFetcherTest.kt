@@ -45,6 +45,34 @@ class DirectChapterFetcherTest {
         assertEquals("https://novelfire.net/book/super-gene/chapter-1687", content.nextUrl)
     }
 
+    @Test
+    fun parse_preservesShortOpeningLinesAndTitleWordsInsideProse() {
+        val html = """
+            <html>
+                <head><title>Chapter 42 - The Report</title></head>
+                <body>
+                    <main class="chapter-content">
+                        <p>Title</p>
+                        <p>Author</p>
+                        <p>Novel Super Gene Chapter 42 - The Report</p>
+                        <h1>Chapter 42 - The Report</h1>
+                        <p>42 The Report</p>
+                        <p>"Run!"</p>
+                        <p>Report.</p>
+                        <p>The report was still in her hand when the doors finally opened.</p>
+                        <p>${longSentence("Nobody knew whether the chapter would end with an answer, but they kept reading.")}</p>
+                    </main>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(html)
+
+        assertTrue(content.text.startsWith("\"Run!\""))
+        assertTrue(content.text.contains("Report."))
+        assertTrue(content.text.contains("The report was still in her hand"))
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

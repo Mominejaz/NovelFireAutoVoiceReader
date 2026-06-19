@@ -5,5 +5,7 @@ data class Chapter(
     val title: String,
     val text: String,
     val chunkIndex: Int,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val previousUrl: String? = null,
+    val nextUrl: String? = null
 )
