@@ -321,6 +321,64 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_novelBuddy_usesNextDataChapterContentAndNavigation() {
+        val html = """
+            <html>
+                <head>
+                    <title data-next-head="">Super Gene - Chapter 3462End - Epilogue | NovelBuddy</title>
+                </head>
+                <body>
+                    <aside>
+                        <a href="/popular">Popular</a>
+                        <a href="/hot-chapters">Hot Chapters</a>
+                    </aside>
+                    <main>
+                        <button>Reader settings</button>
+                        <p>This app shell text should not be read.</p>
+                    </main>
+                    <script id="__NEXT_DATA__" type="application/json">{
+                        "props": {
+                            "pageProps": {
+                                "initialChapter": {
+                                    "url": "/super-gene/chapter-3462end-epilogue",
+                                    "name": "Chapter 3462End - Epilogue",
+                                    "content": "\n\u003cp\u003e Chapter 3462 Epilogue\u003c/p\u003e\u003cp\u003e ${longSentence("On a nameless island, Han Sen and his family were having a vacation.")}\u003c/p\u003e\u003cp\u003e Novelfire admin to another admin should not be narrated.\u003c/p\u003e\u003cp\u003e New novel chapters are published on NovelFire.\u003c/p\u003e\u003cp\u003e freewebnovel.com\u003c/p\u003e\u003cp\u003e ${longSentence("The old and heavy door closed, then vanished as if it had never existed.")}\u003c/p\u003e",
+                                    "summary": "Chapter summary"
+                                },
+                                "nextChapter": null,
+                                "previousChapter": {
+                                    "url": "/super-gene/chapter-3461-by-dollars-name-the-end",
+                                    "name": "Chapter 3461 - By Dollar's Name (The End)"
+                                }
+                            }
+                        }
+                    }</script>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://novelbuddy.com/super-gene/chapter-3462end-epilogue"
+        )
+
+        assertEquals("Super Gene - Chapter 3462End - Epilogue", content.title)
+        assertTrue(content.text.startsWith("On a nameless island"))
+        assertTrue(content.text.contains("Han Sen and his family"))
+        assertTrue(content.text.contains("heavy door closed"))
+        assertFalse(content.text.contains("Popular"))
+        assertFalse(content.text.contains("Reader settings"))
+        assertFalse(content.text.contains("Novelfire admin", ignoreCase = true))
+        assertFalse(content.text.contains("New novel chapters", ignoreCase = true))
+        assertFalse(content.text.contains("freewebnovel", ignoreCase = true))
+        assertEquals(
+            "https://novelbuddy.com/super-gene/chapter-3461-by-dollars-name-the-end",
+            content.previousUrl
+        )
+        assertEquals(null, content.nextUrl)
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

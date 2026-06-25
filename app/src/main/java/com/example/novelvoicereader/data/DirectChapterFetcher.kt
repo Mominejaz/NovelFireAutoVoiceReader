@@ -40,11 +40,12 @@ class DirectChapterFetcher {
     fun parse(html: String, sourceUrl: String? = null): ChapterContent {
         val title = extractTitle(html)
         val preferredCandidates = preferredChapterCandidates(html)
-        val candidateHtml = (preferredCandidates.ifEmpty { chapterCandidates(html) })
+        val nextDataCandidates = nextDataChapterCandidates(html)
+        val candidateHtml = ((nextDataCandidates + preferredCandidates).ifEmpty { chapterCandidates(html) })
             .maxByOrNull { stripToText(it).length }
             ?: html
         val text = cleanupChapterText(stripToText(candidateHtml), title)
-        val chapterLinks = extractChapterLinks(html, sourceUrl)
+        val chapterLinks = extractNextDataChapterLinks(html, sourceUrl) ?: extractChapterLinks(html, sourceUrl)
         if (text.length < 200) error("chapter text was too short")
         return ChapterContent(
             title = title.ifBlank { "Untitled chapter" },
@@ -101,6 +102,15 @@ class DirectChapterFetcher {
             ?.let(candidates::add)
 
         return candidates
+    }
+
+    private fun nextDataChapterCandidates(html: String): List<String> {
+        val content = Regex(
+            """"initialChapter"\s*:\s*\{.*?"content"\s*:\s*"((?:\\.|[^"\\])*)"\s*,\s*"summary"""",
+            setOf(RegexOption.DOT_MATCHES_ALL)
+        ).find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
+
+        return listOf(content.decodeJsonString()).filter { it.isNotBlank() }
     }
 
     /**
@@ -218,6 +228,23 @@ class DirectChapterFetcher {
         )
     }
 
+    private fun extractNextDataChapterLinks(html: String, sourceUrl: String?): ChapterLinks? {
+        if (sourceUrl.isNullOrBlank() || !html.contains(""""initialChapter"""")) return null
+
+        fun urlFor(key: String): String? {
+            val value = Regex(
+                """"$key"\s*:\s*(null|\{.*?"url"\s*:\s*"((?:\\.|[^"\\])*)")""",
+                setOf(RegexOption.DOT_MATCHES_ALL)
+            ).find(html)?.groupValues?.getOrNull(2)?.takeIf { it.isNotBlank() } ?: return null
+            return resolveUrl(sourceUrl, value.decodeJsonString())
+        }
+
+        return ChapterLinks(
+            previousUrl = urlFor("previousChapter"),
+            nextUrl = urlFor("nextChapter")
+        )
+    }
+
     private fun chapterLinkScore(label: String, rel: String, classes: String, isNext: Boolean): Int {
         val primaryWords = if (isNext) listOf("next", "forward") else listOf("previous", "prev", "back")
         val directionScore = primaryWords.sumOf { word -> if (label.contains(word)) 10 else 0 }
@@ -282,6 +309,9 @@ class DirectChapterFetcher {
                     lower == "report chapter" ||
                     lower == "chapter list" ||
                     lower == "advertisement" ||
+                    lower.contains("freewebnovel.com") ||
+                    lower.contains("novelfire admin") ||
+                    lower.contains("new novel chapters are published") ||
                     Regex("\\[\\s*[\\d,]+\\s+words\\s*]", RegexOption.IGNORE_CASE).containsMatchIn(line) ||
                     (normalizedTitle.isNotBlank() && line.normalizedForComparison() == normalizedTitle)
             }
@@ -371,6 +401,18 @@ class DirectChapterFetcher {
             .replace(Regex("""&#x([0-9a-fA-F]+);""")) { match ->
                 match.groupValues[1].toIntOrNull(16)?.toChar()?.toString().orEmpty()
             }
+    }
+
+    private fun String.decodeJsonString(): String {
+        return replace("\\/", "/")
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\r", "\n")
+            .replace("\\t", " ")
+            .replace(Regex("""\\u([0-9a-fA-F]{4})""")) { match ->
+                match.groupValues[1].toIntOrNull(16)?.toChar()?.toString().orEmpty()
+            }
+            .replace("\\\\", "\\")
     }
 
     private data class ChapterLinks(
