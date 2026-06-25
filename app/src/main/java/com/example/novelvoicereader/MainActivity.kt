@@ -1088,7 +1088,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     node.remove();
                 });
 
-                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content, #chr-content, .chr-c, article.prose, [data-chapter-url]'));
+                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content, #chr-content, .chr-c, .fr-view, article.prose, [data-chapter-url]'));
                 var candidates = preferredCandidates.length > 0
                     ? preferredCandidates
                     : Array.prototype.slice.call(cloned.querySelectorAll('article, main, .chapter, .chapter-content, .entry-content, .content, #chapter, #content'));

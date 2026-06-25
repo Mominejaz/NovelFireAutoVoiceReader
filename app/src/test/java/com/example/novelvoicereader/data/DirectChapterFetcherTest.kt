@@ -606,6 +606,63 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_wuxiaWorld_usesFrViewProseAndNextChapterAnchor() {
+        val html = """
+            <html>
+                <head>
+                    <title data-rh="true">Child of Light - Volume 1: Chapter 1 - The First Chapter</title>
+                </head>
+                <body>
+                    <div class="chapter-header">
+                        <a href="/novel/child-of-light">Child of Light</a>
+                        <button disabled data-testid="prev-chapter-button">Previous</button>
+                        <button data-testid="next-chapter-button">Next</button>
+                    </div>
+                    <h4 data-testid="heading">
+                        <span data-testid="title">Volume 1: Chapter 1 - The First Chapter</span>
+                    </h4>
+                    <div class="chapter-content">
+                        <div class="fr-view prose max-w-none">
+                            <p><strong><u><span>Volume 1: Chapter 1 - The First Chapter</span></u></strong></p>
+                            <p><span>${longSentence("Early morning, it was so bright that Zhang Gong had to open his lazy eyelids.")}</span></p>
+                            <p><span>${longSentence("Hearing his mother's pleasant voice, he immediately jumped down from bed and hurried toward breakfast.")}</span></p>
+                        </div>
+                        <section>
+                            <a href="/novel/child-of-light/col-volume-1-chapter-2">
+                                <button type="button">NEXT CHAPTER</button>
+                            </a>
+                        </section>
+                    </div>
+                    <section class="comments">
+                        <p>Comments should never become spoken prose.</p>
+                    </section>
+                    <footer>
+                        <p>Terms of Service and app store badges</p>
+                    </footer>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://www.wuxiaworld.com/novel/child-of-light/col-volume-1-chapter-1"
+        )
+
+        assertEquals("Volume 1: Chapter 1 - The First Chapter", content.title)
+        assertTrue(content.text.startsWith("Early morning"))
+        assertTrue(content.text.contains("hurried toward breakfast"))
+        assertFalse(content.text.contains("Child of Light"))
+        assertFalse(content.text.contains("NEXT CHAPTER"))
+        assertFalse(content.text.contains("Comments should never"))
+        assertFalse(content.text.contains("Terms of Service"))
+        assertEquals(null, content.previousUrl)
+        assertEquals(
+            "https://www.wuxiaworld.com/novel/child-of-light/col-volume-1-chapter-2",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

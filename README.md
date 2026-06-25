@@ -29,6 +29,7 @@ The parser is designed around clean chapter extraction and currently has targete
 - NovelFull chapter pages, including URLs like `https://novelfull.net/the-99th-divorce/chapter-1-who-was-the-murderer.html`
 - NovelRoll chapter pages, including URLs like `https://novelroll.com/book/i-can-copy-talents/chapter-2150`
 - Royal Road chapter pages
+- WuxiaWorld chapter pages, including URLs like `https://www.wuxiaworld.com/novel/child-of-light/col-volume-1-chapter-1`
 - Generic article/main/content containers as a fallback
 
 Some sites may still fail if they hide chapter text behind scripts, login gates, unusual markup, or aggressive bot protection. Contributions that add focused parser fixtures are very welcome.

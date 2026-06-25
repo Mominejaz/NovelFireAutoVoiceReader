@@ -60,6 +60,7 @@ class DirectChapterFetcher {
     private fun extractTitle(html: String): String {
         val titlePatterns = listOf(
             Regex("""(?is)\bdata-chapter-name\s*=\s*["']([^"']+)["']"""),
+            Regex("""(?is)<[^>]+\bdata-testid\s*=\s*["']title["'][^>]*>(.*?)</[^>]+>"""),
             Regex("""(?is)<h1[^>]*>(.*?)</h1>"""),
             Regex("""(?is)<[^>]+class=["'][^"']*\bchr-title\b[^"']*["'][^>]*>(.*?)</[^>]+>"""),
             Regex("""(?is)<[^>]+class=["'][^"']*(?:chapter-title|chapter__title|entry-title)[^"']*["'][^>]*>(.*?)</[^>]+>"""),
@@ -131,7 +132,7 @@ class DirectChapterFetcher {
         val chrContentIdPattern = Regex("""(?is)\bid\s*=\s*["']chr-content["']""")
         val chapterTextIdPattern = Regex("""(?is)\bid\s*=\s*["']chapterText["']""")
         val classPattern = Regex(
-            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b|\bchapter-inner\b|\bchr-c\b|\bprose\b)[^"']*["']"""
+            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b|\bchapter-inner\b|\bchr-c\b|\bfr-view\b|\bprose\b)[^"']*["']"""
         )
         val dataChapterUrlPattern = Regex("""(?is)\bdata-chapter-url\s*=\s*["'][^"']+["']""")
 
@@ -214,7 +215,7 @@ class DirectChapterFetcher {
             val rel = relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val classes = classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val label = listOf(
-                stripToText(match.groupValues.getOrNull(2).orEmpty()),
+                stripToLinkLabel(match.groupValues.getOrNull(2).orEmpty()),
                 titlePattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
                 ariaPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             ).joinToString(" ").lowercase(Locale.US)
@@ -320,6 +321,16 @@ class DirectChapterFetcher {
             .replace(Regex("[ \\t]+"), " ")
             .replace(Regex(" *\n *"), "\n")
             .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+    }
+
+    private fun stripToLinkLabel(rawHtml: String): String {
+        return rawHtml
+            .replace(Regex("""(?is)<script\b.*?</script>"""), " ")
+            .replace(Regex("""(?is)<style\b.*?</style>"""), " ")
+            .replace(Regex("""(?is)<(?:[^"'<>]+|"[^"]*"|'[^']*')*>"""), " ")
+            .decodeHtmlEntities()
+            .replace(Regex("\\s+"), " ")
             .trim()
     }
 
