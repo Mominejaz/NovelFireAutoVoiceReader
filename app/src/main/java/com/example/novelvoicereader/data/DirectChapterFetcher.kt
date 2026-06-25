@@ -45,7 +45,9 @@ class DirectChapterFetcher {
             .maxByOrNull { stripToText(it).length }
             ?: html
         val text = cleanupChapterText(stripToText(candidateHtml), title)
-        val chapterLinks = extractNextDataChapterLinks(html, sourceUrl) ?: extractChapterLinks(html, sourceUrl)
+        val chapterLinks = extractNextDataChapterLinks(html, sourceUrl)
+            ?: extractDataAttributeChapterLinks(html, sourceUrl)
+            ?: extractChapterLinks(html, sourceUrl)
         if (text.length < 200) error("chapter text was too short")
         return ChapterContent(
             title = title.ifBlank { "Untitled chapter" },
@@ -57,6 +59,7 @@ class DirectChapterFetcher {
 
     private fun extractTitle(html: String): String {
         val titlePatterns = listOf(
+            Regex("""(?is)\bdata-chapter-name\s*=\s*["']([^"']+)["']"""),
             Regex("""(?is)<h1[^>]*>(.*?)</h1>"""),
             Regex("""(?is)<[^>]+class=["'][^"']*(?:chapter-title|chapter__title|entry-title)[^"']*["'][^>]*>(.*?)</[^>]+>"""),
             Regex("""(?is)<title[^>]*>(.*?)</title>""")
@@ -70,12 +73,12 @@ class DirectChapterFetcher {
     }
 
     private fun cleanupTitle(title: String): String {
-        val withoutRoyalRoad = if (title.contains(" | Royal Road")) {
-            title.substringBefore(" | Royal Road").substringBeforeLast(" - ")
-        } else {
-            title
+        val withoutSiteSuffix = when {
+            title.contains(" | Royal Road") -> title.substringBefore(" | Royal Road").substringBeforeLast(" - ")
+            title.contains(" | NovelRoll") -> title.substringBefore(" | NovelRoll")
+            else -> title
         }
-        return withoutRoyalRoad
+        return withoutSiteSuffix
             .substringBefore(" - Novel")
             .substringBefore(" | Novel")
             .trim()
@@ -126,15 +129,17 @@ class DirectChapterFetcher {
         val idPattern = Regex("""(?is)\bid\s*=\s*["']chapter-content["']""")
         val chapterTextIdPattern = Regex("""(?is)\bid\s*=\s*["']chapterText["']""")
         val classPattern = Regex(
-            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b|\bchapter-inner\b)[^"']*["']"""
+            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b|\bchapter-inner\b|\bprose\b)[^"']*["']"""
         )
+        val dataChapterUrlPattern = Regex("""(?is)\bdata-chapter-url\s*=\s*["'][^"']+["']""")
 
         openingTagPattern.findAll(html).forEach { match ->
             val openingTag = match.value
             if (
                 !idPattern.containsMatchIn(openingTag) &&
                 !chapterTextIdPattern.containsMatchIn(openingTag) &&
-                !classPattern.containsMatchIn(openingTag)
+                !classPattern.containsMatchIn(openingTag) &&
+                !dataChapterUrlPattern.containsMatchIn(openingTag)
             ) {
                 return@forEach
             }
@@ -245,6 +250,27 @@ class DirectChapterFetcher {
         )
     }
 
+    private fun extractDataAttributeChapterLinks(html: String, sourceUrl: String?): ChapterLinks? {
+        if (sourceUrl.isNullOrBlank() || !html.contains("data-")) return null
+
+        fun urlFor(attributeName: String): String? {
+            val value = Regex("""(?is)\b$attributeName\s*=\s*["']([^"']+)["']""")
+                .find(html)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.takeIf { it.isNotBlank() }
+                ?: return null
+            return resolveUrl(sourceUrl, value)
+        }
+
+        val links = ChapterLinks(
+            previousUrl = urlFor("data-prev-url"),
+            nextUrl = urlFor("data-next-url")
+        )
+
+        return links.takeIf { it.previousUrl != null || it.nextUrl != null }
+    }
+
     private fun chapterLinkScore(label: String, rel: String, classes: String, isNext: Boolean): Int {
         val primaryWords = if (isNext) listOf("next", "forward") else listOf("previous", "prev", "back")
         val directionScore = primaryWords.sumOf { word -> if (label.contains(word)) 10 else 0 }
@@ -278,6 +304,8 @@ class DirectChapterFetcher {
             .replace(Regex("""(?is)<script\b.*?</script>"""), " ")
             .replace(Regex("""(?is)<style\b.*?</style>"""), " ")
             .replace(Regex("""(?is)<noscript\b.*?</noscript>"""), " ")
+            .replace(Regex("""(?is)<details\b.*?</details>"""), " ")
+            .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*\bnot-prose\b[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
             .replace(Regex("""(?is)<(?:nav|header|footer|aside|form|button|iframe)\b.*?</(?:nav|header|footer|aside|form|button|iframe)>"""), " ")
             .replace(Regex("""(?i)<br\s*/?>"""), "\n")
             .replace(Regex("""(?i)</(?:p|div|section|article|h1|h2|h3|li)>"""), "\n")
@@ -309,9 +337,13 @@ class DirectChapterFetcher {
                     lower == "report chapter" ||
                     lower == "chapter list" ||
                     lower == "advertisement" ||
+                    lower.startsWith("listen to chapter") ||
+                    lower.startsWith("previously on ") ||
                     lower.contains("freewebnovel.com") ||
                     lower.contains("novelfire admin") ||
                     lower.contains("new novel chapters are published") ||
+                    Regex("""^~?\d+\s+minute\s+read\b""", RegexOption.IGNORE_CASE).containsMatchIn(line) ||
+                    Regex("""^[\d,]+\s+words$""", RegexOption.IGNORE_CASE).containsMatchIn(line) ||
                     Regex("\\[\\s*[\\d,]+\\s+words\\s*]", RegexOption.IGNORE_CASE).containsMatchIn(line) ||
                     (normalizedTitle.isNotBlank() && line.normalizedForComparison() == normalizedTitle)
             }

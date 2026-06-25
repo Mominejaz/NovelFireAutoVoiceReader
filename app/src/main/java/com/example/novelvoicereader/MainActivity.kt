@@ -1084,11 +1084,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 var cloned = document.body ? document.body.cloneNode(true) : null;
                 if (!cloned) return JSON.stringify({ title: document.title || 'Untitled chapter', text: '' });
 
-                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside').forEach(function(node) {
+                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside, details, .not-prose').forEach(function(node) {
                     node.remove();
                 });
 
-                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content'));
+                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content, article.prose, [data-chapter-url]'));
                 var candidates = preferredCandidates.length > 0
                     ? preferredCandidates
                     : Array.prototype.slice.call(cloned.querySelectorAll('article, main, .chapter, .chapter-content, .entry-content, .content, #chapter, #content'));
@@ -1111,6 +1111,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         : 'a[rel="prev"], a[rel="previous"], a._navigation._prev, a.prev-btn, a.prev, .prev a, .previous a, .nav-previous a';
                     var direct = document.querySelector(selector);
                     if (direct && direct.href) return direct.href;
+
+                    var dataAttr = direction === 'next' ? 'data-next-url' : 'data-prev-url';
+                    var dataNode = document.querySelector('[' + dataAttr + ']');
+                    var dataUrl = dataNode ? dataNode.getAttribute(dataAttr) : '';
+                    if (dataUrl) return new URL(dataUrl, document.location.href).href;
 
                     var labels = direction === 'next'
                         ? ['next chapter', 'next']

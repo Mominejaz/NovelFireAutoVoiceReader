@@ -379,6 +379,76 @@ class DirectChapterFetcherTest {
         assertEquals(null, content.nextUrl)
     }
 
+    @Test
+    fun parse_novelRoll_usesProseArticleAndDataNavigation() {
+        val html = """
+            <html>
+                <head>
+                    <title>I Can Copy Talents novel Chapter 2150: 2150 read online | NovelRoll</title>
+                    <link rel="prev" href="https://novelroll.com/book/i-can-copy-talents/chapter-2149" />
+                </head>
+                <body>
+                    <nav>
+                        <a href="/book/i-can-copy-talents">Chapter list</a>
+                    </nav>
+                    <section class="chapter-section">
+                        <article class="prose prose-lg"
+                            data-chapter-url="/book/i-can-copy-talents/chapter-2150"
+                            data-chapter-name="Chapter 2150: 2150"
+                            data-prev-url="/book/i-can-copy-talents/chapter-2149"
+                            data-next-url="/book/i-can-copy-talents/chapter-2151">
+                            <h1>
+                                <a href="/book/i-can-copy-talents">I Can Copy Talents</a>
+                                Chapter 2150: 2150
+                            </h1>
+                            <div class="not-prose">~6 minute read · 1,394 words</div>
+                            <button>Listen to chapter</button>
+                            <details>
+                                <summary>Previously on I Can Copy Talents...</summary>
+                                <div class="collapse-content">
+                                    The recap should not become the first narrated paragraph.
+                                </div>
+                            </details>
+                            <p>${longSentence("Now that he had reached the summit of the ancient pagoda, Ye Tian calmly studied the endless lights below.")}</p>
+                            <p>${longSentence("The invisible chains around the market shattered, and the cultivators finally saw the path beyond the starry gate.")}</p>
+                        </article>
+                    </section>
+                    <section id="comments">
+                        <p>Comments should stay out of the spoken chapter.</p>
+                    </section>
+                    <footer>
+                        <p>Privacy policy</p>
+                    </footer>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://novelroll.com/book/i-can-copy-talents/chapter-2150"
+        )
+
+        assertEquals("Chapter 2150: 2150", content.title)
+        assertTrue(content.text.startsWith("Now that he had reached the summit"))
+        assertTrue(content.text.contains("cultivators finally saw the path"))
+        assertFalse(content.text.contains("I Can Copy Talents"))
+        assertFalse(content.text.contains("minute read"))
+        assertFalse(content.text.contains("1,394 words"))
+        assertFalse(content.text.contains("Listen to chapter"))
+        assertFalse(content.text.contains("Previously on"))
+        assertFalse(content.text.contains("recap should not"))
+        assertFalse(content.text.contains("Comments should stay out"))
+        assertFalse(content.text.contains("Privacy policy"))
+        assertEquals(
+            "https://novelroll.com/book/i-can-copy-talents/chapter-2149",
+            content.previousUrl
+        )
+        assertEquals(
+            "https://novelroll.com/book/i-can-copy-talents/chapter-2151",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }
