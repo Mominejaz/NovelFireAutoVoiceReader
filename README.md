@@ -22,6 +22,7 @@ The parser is designed around clean chapter extraction and currently has targete
 
 - NovelFire-style chapter pages
 - Divine Dao Library-style chapter pages
+- FreeWebNovel chapter pages, including URLs like `https://freewebnovel.com/novel/sold/chapter-1`
 - LightNovelWorld chapter pages, including URLs like `https://lightnovelworld.org/novel/who-let-him-cultivate/chapter/93/`
 - LightNovelPub chapter pages, including URLs like `https://lightnovelpub.org/novel/shadow-slave/chapter/1/`
 - NovelBin chapter pages, including URLs like `https://novelbin.me/novel-book/turning/chapter-1`

@@ -1088,7 +1088,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     node.remove();
                 });
 
-                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text, .chapter-text.protected-content, .chapter__content, #chapter-content, #chr-content, .chr-c, .fr-view, article.prose, [data-chapter-url]'));
+                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, #article, .chapter-text, .chapter-text.protected-content, .chapter__content, #chapter-content, #chr-content, .chr-c, .fr-view, article.prose, [data-chapter-url]'));
                 var candidates = preferredCandidates.length > 0
                     ? preferredCandidates
                     : Array.prototype.slice.call(cloned.querySelectorAll('article, main, .chapter, .chapter-content, .entry-content, .content, #chapter, #content'));
@@ -1106,16 +1106,29 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 if (!title) title = 'Untitled chapter';
 
                 function linkFor(direction) {
+                    function validChapterTarget(url) {
+                        if (!url || url === document.location.href) return false;
+                        try {
+                            var currentPath = new URL(document.location.href).pathname.toLowerCase();
+                            var targetPath = new URL(url, document.location.href).pathname.toLowerCase();
+                            if (currentPath.indexOf('chapter') !== -1 && targetPath.indexOf('chapter') === -1) return false;
+                        } catch (e) {}
+                        return true;
+                    }
+
                     var selector = direction === 'next'
                         ? 'a[rel="next"], a._navigation._next, a.next-btn, a.next, .next a, .nav-next a'
                         : 'a[rel="prev"], a[rel="previous"], a._navigation._prev, a.prev-btn, a.prev, .prev a, .previous a, .nav-previous a';
                     var direct = document.querySelector(selector);
-                    if (direct && direct.href) return direct.href;
+                    if (direct && direct.href && validChapterTarget(direct.href)) return direct.href;
 
                     var dataAttr = direction === 'next' ? 'data-next-url' : 'data-prev-url';
                     var dataNode = document.querySelector('[' + dataAttr + ']');
                     var dataUrl = dataNode ? dataNode.getAttribute(dataAttr) : '';
-                    if (dataUrl) return new URL(dataUrl, document.location.href).href;
+                    if (dataUrl) {
+                        var resolvedDataUrl = new URL(dataUrl, document.location.href).href;
+                        if (validChapterTarget(resolvedDataUrl)) return resolvedDataUrl;
+                    }
 
                     var labels = direction === 'next'
                         ? ['next chapter', 'next']
@@ -1124,7 +1137,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     for (var j = 0; j < anchors.length; j++) {
                         var linkText = cleanText((anchors[j].innerText || '') + ' ' + (anchors[j].title || '') + ' ' + (anchors[j].getAttribute('aria-label') || '')).toLowerCase();
                         for (var k = 0; k < labels.length; k++) {
-                            if (linkText.indexOf(labels[k]) !== -1) return anchors[j].href;
+                            if (linkText.indexOf(labels[k]) !== -1 && validChapterTarget(anchors[j].href)) return anchors[j].href;
                         }
                     }
                     return '';

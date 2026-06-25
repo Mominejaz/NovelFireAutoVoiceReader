@@ -736,6 +736,68 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_freeWebNovel_usesArticleContentAndIgnoresNovelPagePrevious() {
+        val html = """
+            <html>
+                <head>
+                    <title>Sold? - Chapter 1: One:Prologue | Free Web Novel</title>
+                </head>
+                <body>
+                    <nav class="ul-nav">
+                        <a href="/novel/sold">Novel detail</a>
+                    </nav>
+                    <ul class="ul-list7">
+                        <li class="prev">
+                            <a href="/novel/sold" id="prev_url">Prev Chapter</a>
+                        </li>
+                        <li>
+                            <a href="/novel/sold/chapter-2" id="next_url" title="Read Next chapter">Next Chapter</a>
+                        </li>
+                    </ul>
+                    <div class="chapter-start"></div>
+                    <div class="read-ads">Sponsored placement before prose</div>
+                    <div class="txt">
+                        <div id="article">
+                            <h4>Chapter 1: One:Prologue</h4>
+                            <p>${longSentence("It was dark, and she could not see because she had been blindfolded for hours.")}</p>
+                            <p>${longSentence("Her hands were cuffed behind her back, and the chilly room made every breath feel sharper.")}</p>
+                        </div>
+                        <div class="ads-holder">Advertisement after prose</div>
+                    </div>
+                    <div class="chapter-end"></div>
+                    <div class="text-center">
+                        <a href="javascript:;" class="library">Add to Library</a>
+                        <a href="javascript:;" class="showcomment">0 Comments</a>
+                    </div>
+                    <p class="tips">Use arrow keys (or A / D) to PREV/NEXT chapter</p>
+                    <div id="e-comments">
+                        <textarea class="e-edit comm-inp">Share your thoughts.</textarea>
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://freewebnovel.com/novel/sold/chapter-1"
+        )
+
+        assertEquals("Chapter 1: One:Prologue", content.title)
+        assertTrue(content.text.startsWith("It was dark"))
+        assertTrue(content.text.contains("chilly room made every breath"))
+        assertFalse(content.text.contains("Sponsored placement"))
+        assertFalse(content.text.contains("Advertisement after prose"))
+        assertFalse(content.text.contains("Add to Library"))
+        assertFalse(content.text.contains("PREV/NEXT"))
+        assertFalse(content.text.contains("Share your thoughts"))
+        assertEquals(null, content.previousUrl)
+        assertEquals(
+            "https://freewebnovel.com/novel/sold/chapter-2",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

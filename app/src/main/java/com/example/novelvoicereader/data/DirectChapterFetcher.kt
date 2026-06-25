@@ -105,6 +105,7 @@ class DirectChapterFetcher {
             Regex("""(?is)<h1[^>]*>(.*?)</h1>"""),
             Regex("""(?is)<[^>]+class=["'][^"']*\bchr-title\b[^"']*["'][^>]*>(.*?)</[^>]+>"""),
             Regex("""(?is)<[^>]+class=["'][^"']*(?:chapter-title|chapter__title|entry-title)[^"']*["'][^>]*>(.*?)</[^>]+>"""),
+            Regex("""(?is)<h4[^>]*>(.*?)</h4>"""),
             Regex("""(?is)<title[^>]*>(.*?)</title>""")
         )
 
@@ -170,6 +171,7 @@ class DirectChapterFetcher {
             """(?is)<(section|div|article|main)\b(?:[^"'<>]+|"[^"]*"|'[^']*')*>"""
         )
         val idPattern = Regex("""(?is)\bid\s*=\s*["']chapter-content["']""")
+        val articleIdPattern = Regex("""(?is)\bid\s*=\s*["']article["']""")
         val chrContentIdPattern = Regex("""(?is)\bid\s*=\s*["']chr-content["']""")
         val chapterTextIdPattern = Regex("""(?is)\bid\s*=\s*["']chapterText["']""")
         val classPattern = Regex(
@@ -181,6 +183,7 @@ class DirectChapterFetcher {
             val openingTag = match.value
             if (
                 !idPattern.containsMatchIn(openingTag) &&
+                !articleIdPattern.containsMatchIn(openingTag) &&
                 !chrContentIdPattern.containsMatchIn(openingTag) &&
                 !chapterTextIdPattern.containsMatchIn(openingTag) &&
                 !classPattern.containsMatchIn(openingTag) &&
@@ -235,6 +238,7 @@ class DirectChapterFetcher {
             val attributes = match.groupValues.getOrNull(1).orEmpty()
             val href = hrefPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val resolvedUrl = resolveUrl(sourceUrl, href) ?: return@forEach
+            if (!looksLikeChapterNavigationTarget(sourceUrl, resolvedUrl)) return@forEach
             val rel = relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val classes = classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
 
@@ -253,6 +257,7 @@ class DirectChapterFetcher {
             val attributes = match.groupValues.getOrNull(1).orEmpty()
             val href = hrefPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val resolvedUrl = resolveUrl(sourceUrl, href) ?: return@forEach
+            if (!looksLikeChapterNavigationTarget(sourceUrl, resolvedUrl)) return@forEach
             val rel = relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val classes = classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val label = listOf(
@@ -342,6 +347,16 @@ class DirectChapterFetcher {
         }
 
         return runCatching { URL(URL(sourceUrl), trimmed).toString() }.getOrNull()
+    }
+
+    private fun looksLikeChapterNavigationTarget(sourceUrl: String, resolvedUrl: String): Boolean {
+        if (sourceUrl == resolvedUrl) return false
+
+        val sourcePath = runCatching { URL(sourceUrl).path.lowercase(Locale.US) }.getOrDefault(sourceUrl.lowercase(Locale.US))
+        val targetPath = runCatching { URL(resolvedUrl).path.lowercase(Locale.US) }.getOrDefault(resolvedUrl.lowercase(Locale.US))
+        if ("chapter" in sourcePath && "chapter" !in targetPath) return false
+
+        return true
     }
 
     private fun stripToText(rawHtml: String): String {
