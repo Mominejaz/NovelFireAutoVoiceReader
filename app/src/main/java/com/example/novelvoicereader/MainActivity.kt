@@ -1084,11 +1084,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 var cloned = document.body ? document.body.cloneNode(true) : null;
                 if (!cloned) return JSON.stringify({ title: document.title || 'Untitled chapter', text: '' });
 
-                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside, details, .not-prose').forEach(function(node) {
+                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside, details, .not-prose, .js-ad-slot').forEach(function(node) {
                     node.remove();
                 });
 
-                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content, article.prose, [data-chapter-url]'));
+                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content, #chr-content, .chr-c, article.prose, [data-chapter-url]'));
                 var candidates = preferredCandidates.length > 0
                     ? preferredCandidates
                     : Array.prototype.slice.call(cloned.querySelectorAll('article, main, .chapter, .chapter-content, .entry-content, .content, #chapter, #content'));

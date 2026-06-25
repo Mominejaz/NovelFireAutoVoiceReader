@@ -449,6 +449,87 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_novelBin_usesChrContentAndSkipsDisabledPreviousLink() {
+        val html = """
+            <html>
+                <head>
+                    <title>Turning #Chapter 1 - Read Turning Chapter 1 Online - All Page - Novel Bin</title>
+                </head>
+                <body>
+                    <main>
+                        <div id="chapter" class="chapter container">
+                            <a class="novel-title" href="https://novelbin.com/b/turning">Turning</a>
+                            <h2>
+                                <a class="chr-title" href="https://novelbin.com/b/turning/chapter-1" title="Chapter 1">
+                                    <span class="chr-text">Chapter 1</span>
+                                </a>
+                            </h2>
+                            <div class="chr-nav" id="chr-nav-top">
+                                <a disabled class="btn btn-success js-chapter-nav"
+                                    data-chapter-nav="prev"
+                                    data-chapter-url=""
+                                    href="javascript:void(0)">
+                                    Prev Chapter
+                                </a>
+                                <button type="button" class="btn btn-success chr-jump">Chapter list</button>
+                                <a class="btn btn-success js-chapter-nav"
+                                    data-chapter-nav="next"
+                                    data-chapter-url="https://novelbin.com/b/turning/chapter-2"
+                                    title="Chapter 2"
+                                    href="https://novelbin.com/b/turning/chapter-2">
+                                    Next Chapter
+                                </a>
+                            </div>
+                            <div id="chr-content" class="chr-c">
+                                <div class="js-ad-slot" data-ad-slot="chapter-top">ADs by Google</div>
+                                <p>Chapter 1</p>
+                                <p>${longSentence("Listen, criminal Yudrain Aile, the voice echoed above his head as the silent hall watched him closely.")}</p>
+                                <p>${longSentence("Yuder smirked bitterly to himself while the accusations continued without anyone asking for the truth.")}</p>
+                                <div class="js-ad-slot" data-ad-slot="chapter-bottom">Advertisement</div>
+                            </div>
+                            <div class="chr-nav" id="chr-nav-bottom">
+                                <a class="btn btn-success js-chapter-nav"
+                                    data-chapter-nav="next"
+                                    href="https://novelbin.com/b/turning/chapter-2">
+                                    Next Chapter
+                                </a>
+                            </div>
+                            <a id="chr-error">Report chapter</a>
+                            <div class="box-notice">
+                                Tip: You can use left, right, A and D keyboard keys to browse between chapters.
+                            </div>
+                        </div>
+                    </main>
+                    <footer>
+                        <strong>Novel Bin</strong>
+                        Read light novel, web novel, korean novel and chinese novel online for free.
+                    </footer>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://novelbin.me/novel-book/turning/chapter-1"
+        )
+
+        assertEquals("Chapter 1", content.title)
+        assertTrue(content.text.startsWith("Listen, criminal Yudrain Aile"))
+        assertTrue(content.text.contains("the accusations continued"))
+        assertFalse(content.text.contains("ADs by Google"))
+        assertFalse(content.text.contains("Advertisement"))
+        assertFalse(content.text.contains("Chapter list"))
+        assertFalse(content.text.contains("Report chapter"))
+        assertFalse(content.text.contains("keyboard keys"))
+        assertFalse(content.text.contains("Novel Bin"))
+        assertEquals(null, content.previousUrl)
+        assertEquals(
+            "https://novelbin.com/b/turning/chapter-2",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

@@ -24,6 +24,7 @@ The parser is designed around clean chapter extraction and currently has targete
 - Divine Dao Library-style chapter pages
 - LightNovelWorld chapter pages, including URLs like `https://lightnovelworld.org/novel/who-let-him-cultivate/chapter/93/`
 - LightNovelPub chapter pages, including URLs like `https://lightnovelpub.org/novel/shadow-slave/chapter/1/`
+- NovelBin chapter pages, including URLs like `https://novelbin.me/novel-book/turning/chapter-1`
 - NovelBuddy chapter pages, including URLs like `https://novelbuddy.com/super-gene/chapter-3462end-epilogue`
 - NovelRoll chapter pages, including URLs like `https://novelroll.com/book/i-can-copy-talents/chapter-2150`
 - Royal Road chapter pages
