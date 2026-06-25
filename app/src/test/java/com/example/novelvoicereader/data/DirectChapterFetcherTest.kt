@@ -208,6 +208,65 @@ class DirectChapterFetcherTest {
     }
 
     @Test
+    fun parse_lightNovelPub_usesProtectedChapterTextAndSkipsDisabledPreviousButton() {
+        val html = """
+            <html>
+                <head>
+                    <title>Chapter 1: Chapter 1 - 1: Nightmare Begins - Shadow Slave by Guiltythree | Light Novel Pub</title>
+                </head>
+                <body>
+                    <div class="chapter-reader">
+                        <div class="chapter-container">
+                            <div class="chapter-header">
+                                <h1 class="chapter-title">Chapter 1 - 1: Nightmare Begins</h1>
+                            </div>
+                            <div class="chapter-nav">
+                                <button class="nav-btn prev-btn disabled">Previous</button>
+                                <a href="/novel/shadow-slave/chapter/2/" class="nav-btn next-btn">Next</a>
+                            </div>
+                            <div class="chapter-content">
+                                <div class="chapter-text protected-content" id="chapterText" data-protected="true">
+                                    <div class="chapter-ad-container" data-ad-position="1">
+                                        <div class="ad-unit"><script>loadAdvertisement()</script></div>
+                                    </div>
+                                    <p>${longSentence("A frail young man slowly opened his eyes and found himself surrounded by endless darkness.")}</p>
+                                    <p>${longSentence("The cold floor beneath him felt real enough, but the nightmare still clung to his thoughts.")}</p>
+                                    <div class="chapter-ad-container" data-ad-position="2">
+                                        <div class="ad-unit">ADVERTISEMENT</div>
+                                    </div>
+                                    <p>${longSentence("Somewhere far away, a voice whispered that the trial had only just begun.")}</p>
+                                </div>
+                            </div>
+                            <section class="comments">
+                                <h3 class="comments-title">Chapter Comments</h3>
+                                <p>Sign in to leave a comment.</p>
+                            </section>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://lightnovelpub.org/novel/shadow-slave/chapter/1/"
+        )
+
+        assertEquals("Chapter 1 - 1: Nightmare Begins", content.title)
+        assertTrue(content.text.startsWith("A frail young man slowly opened his eyes"))
+        assertTrue(content.text.contains("trial had only just begun"))
+        assertFalse(content.text.contains("ADVERTISEMENT"))
+        assertFalse(content.text.contains("chapter-ad-container"))
+        assertFalse(content.text.contains("Chapter Comments"))
+        assertFalse(content.text.contains("Sign in"))
+        assertEquals(null, content.previousUrl)
+        assertEquals(
+            "https://lightnovelpub.org/novel/shadow-slave/chapter/2/",
+            content.nextUrl
+        )
+    }
+
+    @Test
     fun parse_royalRoad_usesChapterInnerAndHeadNavigationLinks() {
         val html = """
             <html>

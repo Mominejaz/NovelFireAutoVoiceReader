@@ -23,6 +23,8 @@ The parser is designed around clean chapter extraction and currently has targete
 - NovelFire-style chapter pages
 - Divine Dao Library-style chapter pages
 - LightNovelWorld chapter pages, including URLs like `https://lightnovelworld.org/novel/who-let-him-cultivate/chapter/93/`
+- LightNovelPub chapter pages, including URLs like `https://lightnovelpub.org/novel/shadow-slave/chapter/1/`
+- Royal Road chapter pages
 - Generic article/main/content containers as a fallback
 
 Some sites may still fail if they hide chapter text behind scripts, login gates, unusual markup, or aggressive bot protection. Contributions that add focused parser fixtures are very welcome.
