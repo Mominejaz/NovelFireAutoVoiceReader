@@ -367,7 +367,7 @@ class DirectChapterFetcher {
             .replace(Regex("""(?is)<details\b.*?</details>"""), " ")
             .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*\bnot-prose\b[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
             .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*\bjs-ad-slot\b[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
-            .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*(?:\bads-holder\b|\bads-middle\b)[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
+            .replace(Regex("""(?is)<[^>]*\b(?:class|id)\s*=\s*["'][^"']*(?:\bads-holder\b|\bads-middle\b|\bchapter-ad-container\b|\bad-unit\b|advert|popup|pop-up|modal|overlay|membership|join-member|subscribe)[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
             .replace(Regex("""(?is)<(?:nav|header|footer|aside|form|button|iframe)\b.*?</(?:nav|header|footer|aside|form|button|iframe)>"""), " ")
             .replace(Regex("""(?i)<br\s*/?>"""), "\n")
             .replace(Regex("""(?i)</(?:p|div|section|article|h1|h2|h3|li)>"""), "\n")
@@ -409,7 +409,14 @@ class DirectChapterFetcher {
                     lower == "report chapter" ||
                     lower == "chapter list" ||
                     lower == "advertisement" ||
+                    lower == "close" ||
+                    lower == "join as member" ||
+                    lower == "join as members" ||
+                    lower.contains("join as member") ||
+                    lower.contains("join as members") ||
                     lower.contains("ads by google") ||
+                    lower.contains("please disable adblock") ||
+                    lower.contains("support us by disabling") ||
                     lower.startsWith("listen to chapter") ||
                     lower.startsWith("previously on ") ||
                     lower.contains("freewebnovel.com") ||

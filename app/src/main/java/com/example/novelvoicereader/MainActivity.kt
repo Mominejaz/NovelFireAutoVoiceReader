@@ -334,7 +334,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 statusText.text = "Status: page loaded. Extracting chapter..."
 
                 if (autoContinue) {
-                    extractChapterAndRead()
+                    dismissPageOverlays {
+                        extractChapterAndRead()
+                    }
+                } else {
+                    dismissPageOverlays()
                 }
             }
         }
@@ -1084,9 +1088,22 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 var cloned = document.body ? document.body.cloneNode(true) : null;
                 if (!cloned) return JSON.stringify({ title: document.title || 'Untitled chapter', text: '' });
 
-                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside, details, .not-prose, .js-ad-slot, .ads-holder, .ads-middle').forEach(function(node) {
-                    node.remove();
-                });
+                function removeClutter(root) {
+                    var clutterSelectors = [
+                        'script', 'style', 'noscript', 'nav', 'header', 'footer', 'iframe', 'form', 'button', 'aside', 'details',
+                        '.not-prose', '.js-ad-slot', '.ads-holder', '.ads-middle', '.chapter-ad-container', '.ad-unit',
+                        '[class*="advert" i]', '[id*="advert" i]', '[class*="ad-" i]', '[id*="ad-" i]', '[class*="ads" i]', '[id*="ads" i]',
+                        '[class*="popup" i]', '[id*="popup" i]', '[class*="pop-up" i]', '[id*="pop-up" i]',
+                        '[class*="modal" i]', '[id*="modal" i]', '[class*="overlay" i]', '[id*="overlay" i]',
+                        '[class*="membership" i]', '[id*="membership" i]', '[class*="join-member" i]', '[id*="join-member" i]',
+                        '[class*="subscribe" i]', '[id*="subscribe" i]'
+                    ].join(',');
+                    root.querySelectorAll(clutterSelectors).forEach(function(node) {
+                        node.remove();
+                    });
+                }
+
+                removeClutter(cloned);
 
                 var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, #article, .chapter-text, .chapter-text.protected-content, .chapter__content, #chapter-content, #chr-content, .chr-c, .fr-view, article.prose, [data-chapter-url]'));
                 var candidates = preferredCandidates.length > 0
@@ -1184,6 +1201,50 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 statusText.text = "Status: cleanup error: ${e.message}"
                 tts.speak("There was an error cleaning the chapter text.", TextToSpeech.QUEUE_FLUSH, null, "cleanup_error")
             }
+        }
+    }
+
+    private fun dismissPageOverlays(onComplete: (() -> Unit)? = null) {
+        val js = """
+            (function() {
+                function visible(node) {
+                    if (!node || !node.getBoundingClientRect) return false;
+                    var rect = node.getBoundingClientRect();
+                    var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+                    return rect.width > 0 && rect.height > 0 && (!style || style.visibility !== 'hidden');
+                }
+
+                var closeSelectors = [
+                    '[aria-label*="close" i]', '[title*="close" i]', '.close', '.btn-close',
+                    '.modal-close', '.popup-close', '.overlay-close', '[class*="close" i]'
+                ].join(',');
+                Array.prototype.slice.call(document.querySelectorAll(closeSelectors)).forEach(function(node) {
+                    var text = ((node.innerText || node.textContent || '') + ' ' + (node.getAttribute('aria-label') || '') + ' ' + (node.title || '')).trim().toLowerCase();
+                    if (visible(node) && (text === '' || text.indexOf('close') !== -1 || text === 'x' || text === '×')) {
+                        try { node.click(); } catch (e) {}
+                    }
+                });
+
+                var overlaySelectors = [
+                    '.chapter-ad-container', '.ad-unit', '.js-ad-slot', '.ads-holder', '.ads-middle',
+                    '[class*="advert" i]', '[id*="advert" i]', '[class*="ad-" i]', '[id*="ad-" i]', '[class*="ads" i]', '[id*="ads" i]',
+                    '[class*="popup" i]', '[id*="popup" i]', '[class*="pop-up" i]', '[id*="pop-up" i]',
+                    '[class*="modal" i]', '[id*="modal" i]', '[class*="overlay" i]', '[id*="overlay" i]',
+                    '[class*="membership" i]', '[id*="membership" i]', '[class*="join-member" i]', '[id*="join-member" i]',
+                    '[class*="subscribe" i]', '[id*="subscribe" i]'
+                ].join(',');
+                Array.prototype.slice.call(document.querySelectorAll(overlaySelectors)).forEach(function(node) {
+                    try { node.remove(); } catch (e) {}
+                });
+
+                document.documentElement.style.overflow = '';
+                if (document.body) document.body.style.overflow = '';
+                return true;
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(js) {
+            onComplete?.invoke()
         }
     }
 
@@ -1446,6 +1507,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     lower == "next chapter" ||
                     lower == "report chapter" ||
                     lower == "advertisement" ||
+                    lower == "close" ||
+                    lower == "join as member" ||
+                    lower == "join as members" ||
+                    lower.contains("join as member") ||
+                    lower.contains("join as members") ||
+                    lower.contains("please disable adblock") ||
+                    lower.contains("support us by disabling") ||
                     (normalizedTitle.isNotBlank() && line.normalizedForComparison() == normalizedTitle)
             }
 

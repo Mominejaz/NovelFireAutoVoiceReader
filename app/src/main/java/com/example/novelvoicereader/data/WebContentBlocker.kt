@@ -10,13 +10,22 @@ object WebContentBlocker {
         "outbrain.com",
         "popads.net",
         "propellerads.com",
-        "adnxs.com"
+        "adnxs.com",
+        "adsterra.com",
+        "exoclick.com",
+        "mgid.com",
+        "revcontent.com",
+        "adskeeper.com",
+        "hilltopads.net"
     )
 
     private val blockedPathParts = listOf(
         "/ads/",
         "/advert",
         "/popup",
+        "/popunder",
+        "/banner",
+        "adserver",
         "interstitial",
         "analytics",
         "tracker"
