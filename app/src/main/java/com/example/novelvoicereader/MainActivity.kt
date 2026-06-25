@@ -1084,7 +1084,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 var cloned = document.body ? document.body.cloneNode(true) : null;
                 if (!cloned) return JSON.stringify({ title: document.title || 'Untitled chapter', text: '' });
 
-                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside, details, .not-prose, .js-ad-slot').forEach(function(node) {
+                cloned.querySelectorAll('script, style, noscript, nav, header, footer, iframe, form, button, aside, details, .not-prose, .js-ad-slot, .ads-holder, .ads-middle').forEach(function(node) {
                     node.remove();
                 });
 

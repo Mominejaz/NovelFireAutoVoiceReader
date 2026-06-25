@@ -530,6 +530,82 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_novelFull_usesChapterContentAndNavigationButtons() {
+        val html = """
+            <html>
+                <head>
+                    <title>Read The 99th Divorce Chapter 1: Who Was the Murderer online for free - NovelFull</title>
+                </head>
+                <body>
+                    <header>
+                        <form>Search novels</form>
+                    </header>
+                    <main id="container">
+                        <div id="chapter" class="chapter container">
+                            <a class="truyen-title" href="/the-99th-divorce.html">The 99th Divorce</a>
+                            <h2>
+                                <a class="chapter-title" href="/the-99th-divorce/chapter-1-who-was-the-murderer.html"
+                                    title="Chapter 1: Who Was the Murderer">
+                                    <span class="chapter-text">Chapter 1: Who Was the Murderer</span>
+                                </a>
+                            </h2>
+                            <div class="chapter-nav" id="chapter-nav-top">
+                                <a class="btn btn-success" disabled id="prev_chap">Prev Chapter</a>
+                                <button type="button" class="btn btn-success chapter_jump">Chapter list</button>
+                                <a class="btn btn-success"
+                                    href="/the-99th-divorce/chapter-2-sleeping-with-a-woman-as-ugly-as-i-am.html"
+                                    title="Chapter 2: Sleeping with A Woman as Ugly as I Am"
+                                    id="next_chap">Next Chapter</a>
+                            </div>
+                            <div id="chapter-content" class="chapter-c">
+                                <div align="center">
+                                    <iframe src="//ad.a-ads.com/2267708/?size=300x250"></iframe>
+                                </div>
+                                <p>Chapter 1: Who Was the Murderer</p>
+                                <p>Translator: Nyoi-Bo Studio Editor: Nyoi-Bo Studio</p>
+                                <p>${longSentence("At three in the morning, Su Qianci hurried to the Li household and asked to see him.")}</p>
+                                <p>${longSentence("The guards stared at her scarred face coldly while the iron gate remained shut.")}</p>
+                                <div class="ads ads-holder ads-middle text-center">Sponsored story block</div>
+                            </div>
+                            <div class="chapter-nav" id="chapter-nav-bottom">
+                                <a class="btn btn-success" disabled id="prev_chap_bottom">Prev Chapter</a>
+                                <a class="btn btn-success"
+                                    href="/the-99th-divorce/chapter-2-sleeping-with-a-woman-as-ugly-as-i-am.html"
+                                    id="next_chap_bottom">Next Chapter</a>
+                            </div>
+                            <a id="chapter_error">Report chapter</a>
+                            <div id="chapter_comment">Comments should not be narrated.</div>
+                        </div>
+                    </main>
+                    <footer>
+                        <p>Completed novels and latest chapters</p>
+                    </footer>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://novelfull.net/the-99th-divorce/chapter-1-who-was-the-murderer.html"
+        )
+
+        assertEquals("Chapter 1: Who Was the Murderer", content.title)
+        assertTrue(content.text.startsWith("At three in the morning"))
+        assertTrue(content.text.contains("iron gate remained shut"))
+        assertFalse(content.text.contains("Translator:"))
+        assertFalse(content.text.contains("Sponsored story block"))
+        assertFalse(content.text.contains("Chapter list"))
+        assertFalse(content.text.contains("Report chapter"))
+        assertFalse(content.text.contains("Comments should not"))
+        assertFalse(content.text.contains("Completed novels"))
+        assertEquals(null, content.previousUrl)
+        assertEquals(
+            "https://novelfull.net/the-99th-divorce/chapter-2-sleeping-with-a-woman-as-ugly-as-i-am.html",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

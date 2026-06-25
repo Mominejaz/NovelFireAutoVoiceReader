@@ -310,6 +310,7 @@ class DirectChapterFetcher {
             .replace(Regex("""(?is)<details\b.*?</details>"""), " ")
             .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*\bnot-prose\b[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
             .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*\bjs-ad-slot\b[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
+            .replace(Regex("""(?is)<[^>]*\bclass\s*=\s*["'][^"']*(?:\bads-holder\b|\bads-middle\b)[^"']*["'][^>]*>.*?</[^>]+>"""), " ")
             .replace(Regex("""(?is)<(?:nav|header|footer|aside|form|button|iframe)\b.*?</(?:nav|header|footer|aside|form|button|iframe)>"""), " ")
             .replace(Regex("""(?i)<br\s*/?>"""), "\n")
             .replace(Regex("""(?i)</(?:p|div|section|article|h1|h2|h3|li)>"""), "\n")
