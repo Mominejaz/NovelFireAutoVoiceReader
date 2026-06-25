@@ -39,7 +39,10 @@ class DirectChapterFetcher {
 
     fun parse(html: String, sourceUrl: String? = null): ChapterContent {
         val title = extractTitle(html)
-        val candidateHtml = chapterCandidates(html).maxByOrNull { stripToText(it).length } ?: html
+        val preferredCandidates = preferredChapterCandidates(html)
+        val candidateHtml = (preferredCandidates.ifEmpty { chapterCandidates(html) })
+            .maxByOrNull { stripToText(it).length }
+            ?: html
         val text = cleanupChapterText(stripToText(candidateHtml), title)
         val chapterLinks = extractChapterLinks(html, sourceUrl)
         if (text.length < 200) error("chapter text was too short")
@@ -89,6 +92,60 @@ class DirectChapterFetcher {
         return candidates
     }
 
+    /**
+     * Exact chapter containers win over broad article/main/body candidates. This matters on
+     * sites such as Divine Dao Library, where the page also contains a very large chapter index,
+     * and LightNovelWorld, where the prose is nested inside a larger chapter shell.
+     */
+    private fun preferredChapterCandidates(html: String): List<String> {
+        val candidates = mutableListOf<String>()
+        val openingTagPattern = Regex(
+            """(?is)<(section|div|article|main)\b(?:[^"'<>]+|"[^"]*"|'[^']*')*>"""
+        )
+        val idPattern = Regex("""(?is)\bid\s*=\s*["']chapter-content["']""")
+        val chapterTextIdPattern = Regex("""(?is)\bid\s*=\s*["']chapterText["']""")
+        val classPattern = Regex(
+            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b)[^"']*["']"""
+        )
+
+        openingTagPattern.findAll(html).forEach { match ->
+            val openingTag = match.value
+            if (
+                !idPattern.containsMatchIn(openingTag) &&
+                !chapterTextIdPattern.containsMatchIn(openingTag) &&
+                !classPattern.containsMatchIn(openingTag)
+            ) {
+                return@forEach
+            }
+
+            extractElementContent(html, match)
+                .takeIf { it.isNotBlank() }
+                ?.let(candidates::add)
+        }
+        return candidates
+    }
+
+    private fun extractElementContent(html: String, openingMatch: MatchResult): String {
+        val tagName = openingMatch.groupValues[1]
+        val contentStart = openingMatch.range.last + 1
+        val tagPattern = Regex("""(?is)</?$tagName\b(?:[^"'<>]+|"[^"]*"|'[^']*')*>""")
+        var depth = 1
+
+        tagPattern.findAll(html, contentStart).forEach { tagMatch ->
+            val tag = tagMatch.value
+            if (tag.startsWith("</")) {
+                depth -= 1
+                if (depth == 0) {
+                    return html.substring(contentStart, tagMatch.range.first)
+                }
+            } else if (!tag.endsWith("/>")) {
+                depth += 1
+            }
+        }
+
+        return html.substring(contentStart)
+    }
+
     private fun extractChapterLinks(html: String, sourceUrl: String?): ChapterLinks {
         if (sourceUrl.isNullOrBlank()) return ChapterLinks()
 
@@ -106,20 +163,20 @@ class DirectChapterFetcher {
             val attributes = match.groupValues.getOrNull(1).orEmpty()
             val href = hrefPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val resolvedUrl = resolveUrl(sourceUrl, href) ?: return@forEach
+            val rel = relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
+            val classes = classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             val label = listOf(
                 stripToText(match.groupValues.getOrNull(2).orEmpty()),
-                relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
-                classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
                 titlePattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty(),
                 ariaPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
             ).joinToString(" ").lowercase(Locale.US)
 
-            val previousScore = chapterLinkScore(label, isNext = false)
+            val previousScore = chapterLinkScore(label, rel, classes, isNext = false)
             if (previousScore > 0 && previousScore > (previousCandidate?.score ?: 0)) {
                 previousCandidate = ScoredLink(resolvedUrl, previousScore)
             }
 
-            val nextScore = chapterLinkScore(label, isNext = true)
+            val nextScore = chapterLinkScore(label, rel, classes, isNext = true)
             if (nextScore > 0 && nextScore > (nextCandidate?.score ?: 0)) {
                 nextCandidate = ScoredLink(resolvedUrl, nextScore)
             }
@@ -131,14 +188,18 @@ class DirectChapterFetcher {
         )
     }
 
-    private fun chapterLinkScore(label: String, isNext: Boolean): Int {
+    private fun chapterLinkScore(label: String, rel: String, classes: String, isNext: Boolean): Int {
         val primaryWords = if (isNext) listOf("next", "forward") else listOf("previous", "prev", "back")
         val directionScore = primaryWords.sumOf { word -> if (label.contains(word)) 10 else 0 }
-        if (directionScore == 0) return 0
+        val directionTokens = if (isNext) setOf("next", "_next", "nav-next", "next-btn") else {
+            setOf("previous", "_previous", "prev", "_prev", "nav-previous", "prev-btn")
+        }
+        val relScore = if (rel.lowercase(Locale.US).split(Regex("\\s+")).any(directionTokens::contains)) 100 else 0
+        val classScore = if (classes.lowercase(Locale.US).split(Regex("\\s+")).any(directionTokens::contains)) 80 else 0
+        if (directionScore == 0 && relScore == 0 && classScore == 0) return 0
 
         val chapterScore = if (label.contains("chapter")) 4 else 0
-        val relScore = if (isNext && label.contains("next")) 8 else if (!isNext && label.contains("prev")) 8 else 0
-        return directionScore + chapterScore + relScore
+        return directionScore + chapterScore + relScore + classScore
     }
 
     private fun resolveUrl(sourceUrl: String, href: String): String? {
@@ -163,7 +224,7 @@ class DirectChapterFetcher {
             .replace(Regex("""(?is)<(?:nav|header|footer|aside|form|button|iframe)\b.*?</(?:nav|header|footer|aside|form|button|iframe)>"""), " ")
             .replace(Regex("""(?i)<br\s*/?>"""), "\n")
             .replace(Regex("""(?i)</(?:p|div|section|article|h1|h2|h3|li)>"""), "\n")
-            .replace(Regex("""(?is)<[^>]+>"""), " ")
+            .replace(Regex("""(?is)<(?:[^"'<>]+|"[^"]*"|'[^']*')*>"""), " ")
             .decodeHtmlEntities()
             .replace("\r", "\n")
             .replace(Regex("[ \\t]+"), " ")
@@ -183,8 +244,7 @@ class DirectChapterFetcher {
                 val lower = line.lowercase(Locale.US)
 
                 line.length < 2 ||
-                    lower.startsWith("translator:") ||
-                    lower.startsWith("editor:") ||
+                    line.isCreditLine() ||
                     lower.startsWith("restore scroll position") ||
                     lower == "table of contents" ||
                     lower == "previous chapter" ||
@@ -250,6 +310,13 @@ class DirectChapterFetcher {
             lower.startsWith("disclaimer:")
     }
 
+    private fun String.isCreditLine(): Boolean {
+        return Regex(
+            "^(?:translator|editor|finalized editor)\\b\\s*(?::|-|–|—)",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(this)
+    }
+
     private fun String.normalizedForComparison(): String {
         return lowercase(Locale.US)
             .replace(Regex("[^a-z0-9\\s]"), " ")
@@ -261,6 +328,8 @@ class DirectChapterFetcher {
     private fun String.decodeHtmlEntities(): String {
         return replace("&nbsp;", " ")
             .replace("&amp;", "&")
+            .replace("&ndash;", "–")
+            .replace("&mdash;", "—")
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
             .replace("&apos;", "'")
@@ -268,6 +337,9 @@ class DirectChapterFetcher {
             .replace("&gt;", ">")
             .replace(Regex("""&#(\d+);""")) { match ->
                 match.groupValues[1].toIntOrNull()?.toChar()?.toString().orEmpty()
+            }
+            .replace(Regex("""&#x([0-9a-fA-F]+);""")) { match ->
+                match.groupValues[1].toIntOrNull(16)?.toChar()?.toString().orEmpty()
             }
     }
 

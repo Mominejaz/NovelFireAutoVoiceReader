@@ -1088,7 +1088,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     node.remove();
                 });
 
-                var candidates = Array.prototype.slice.call(cloned.querySelectorAll('article, main, .chapter, .chapter-content, .entry-content, .content, #chapter, #content'));
+                var preferredCandidates = Array.prototype.slice.call(cloned.querySelectorAll('#chapterText, .chapter-text.protected-content, .chapter__content, #chapter-content'));
+                var candidates = preferredCandidates.length > 0
+                    ? preferredCandidates
+                    : Array.prototype.slice.call(cloned.querySelectorAll('article, main, .chapter, .chapter-content, .entry-content, .content, #chapter, #content'));
                 if (candidates.length === 0) candidates = [cloned];
 
                 var best = candidates
@@ -1104,8 +1107,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 function linkFor(direction) {
                     var selector = direction === 'next'
-                        ? 'a[rel="next"], a.next, .next a, .nav-next a'
-                        : 'a[rel="prev"], a[rel="previous"], a.prev, .prev a, .previous a, .nav-previous a';
+                        ? 'a[rel="next"], a._navigation._next, a.next-btn, a.next, .next a, .nav-next a'
+                        : 'a[rel="prev"], a[rel="previous"], a._navigation._prev, a.prev-btn, a.prev, .prev a, .previous a, .nav-previous a';
                     var direct = document.querySelector(selector);
                     if (direct && direct.href) return direct.href;
 
