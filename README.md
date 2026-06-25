@@ -26,6 +26,7 @@ The parser is designed around clean chapter extraction and currently has targete
 - LightNovelPub chapter pages, including URLs like `https://lightnovelpub.org/novel/shadow-slave/chapter/1/`
 - NovelBin chapter pages, including URLs like `https://novelbin.me/novel-book/turning/chapter-1`
 - NovelBuddy chapter pages, including URLs like `https://novelbuddy.com/super-gene/chapter-3462end-epilogue`
+- Novelight chapter pages, including URLs like `https://novelight.net/book/chapter/229529`
 - NovelFull chapter pages, including URLs like `https://novelfull.net/the-99th-divorce/chapter-1-who-was-the-murderer.html`
 - NovelRoll chapter pages, including URLs like `https://novelroll.com/book/i-can-copy-talents/chapter-2150`
 - Royal Road chapter pages

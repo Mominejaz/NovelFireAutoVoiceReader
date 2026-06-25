@@ -663,6 +663,79 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_novelight_usesInjectedChapterTextAndPaginationLinks() {
+        val html = """
+            <html>
+                <head>
+                    <title>The Beginning After The End (TBATE) - 520 chapter - Unflinching</title>
+                    <script>
+                        const CHAPTER_ID = "229529";
+                        const BOOK_ID = "65";
+                        const CHAPTER_TITLE = "520 chapter - Unflinching";
+                        const BOOK_TITLE = "The Beginning After The End (TBATE)";
+                    </script>
+                </head>
+                <body>
+                    <header class="header-chapter">
+                        <a href="/book/the-beginning-after-the-end-tbate">The Beginning After The End (TBATE)</a>
+                        <button id="report-chapter-btn">Report</button>
+                    </header>
+                    <div class="chapter-control">
+                        <a href="/book/chapter/229528" class="btn header-btn">Previous icon</a>
+                        <div id="table-of-contents-btn">
+                            <span>Chapter 520</span>
+                            <span>Table of contents</span>
+                        </div>
+                        <a href="/book/chapter/251783" class="btn header-btn">Next icon</a>
+                    </div>
+                    <div class="chapter-text__place">
+                        <div class="nothing">Loading...</div>
+                    </div>
+                    <div class="chapter-text gbushg">
+                        <div>${longSentence("All color drained from the pocket dimension as pale light wrapped around Kezess in the form of a dragon.")}</div>
+                        <div>${longSentence("Aether spilled from him to congeal into a small vertical platform beneath his feet.")}</div>
+                    </div>
+                    <div class="chapter-team__info">
+                        <div class="chapter_team">Chapter written by NoveLight</div>
+                        <div class="pagination">
+                            <a href="/book/chapter/229528" class="btn">Previous</a>
+                            <a href="/book/chapter/251783" class="btn">Next</a>
+                        </div>
+                    </div>
+                    <div class="chapter-comments">
+                        <div class="content">Comment content should stay outside narration.</div>
+                    </div>
+                    <div id="chapter-settings">
+                        <div class="chapter-settings__content">Reader settings</div>
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://novelight.net/book/chapter/229529"
+        )
+
+        assertEquals("520 chapter - Unflinching", content.title)
+        assertTrue(content.text.startsWith("All color drained"))
+        assertTrue(content.text.contains("small vertical platform"))
+        assertFalse(content.text.contains("Loading"))
+        assertFalse(content.text.contains("Table of contents"))
+        assertFalse(content.text.contains("Chapter written by"))
+        assertFalse(content.text.contains("Comment content"))
+        assertFalse(content.text.contains("Reader settings"))
+        assertEquals(
+            "https://novelight.net/book/chapter/229528",
+            content.previousUrl
+        )
+        assertEquals(
+            "https://novelight.net/book/chapter/251783",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }

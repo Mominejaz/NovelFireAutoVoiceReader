@@ -31,7 +31,47 @@ class DirectChapterFetcher {
             val html = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 .let { if (charset.equals("UTF-8", ignoreCase = true)) it else it }
 
-            parse(html, url)
+            parse(html.withNovelightAjaxContent(url), url)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun String.withNovelightAjaxContent(sourceUrl: String): String {
+        val parsedUrl = runCatching { URL(sourceUrl) }.getOrNull() ?: return this
+        if (!parsedUrl.host.equals("novelight.net", ignoreCase = true)) return this
+
+        val chapterId = Regex("""(?is)\bCHAPTER_ID\s*=\s*["']([^"']+)["']""")
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.takeIf { it.isNotBlank() }
+            ?: return this
+
+        val ajaxUrl = URL(parsedUrl, "/book/ajax/read-chapter/$chapterId")
+        val connection = (ajaxUrl.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 12_000
+            readTimeout = 12_000
+            instanceFollowRedirects = true
+            setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Android) AppleWebKit/537.36 NovelVoiceReader/1.0"
+            )
+            setRequestProperty("Accept", "application/json,text/javascript,*/*")
+            setRequestProperty("Referer", sourceUrl)
+            setRequestProperty("X-Requested-With", "XMLHttpRequest")
+        }
+
+        return try {
+            if (connection.responseCode !in 200..299) return this
+            val response = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val content = Regex(
+                """"content"\s*:\s*"((?:\\.|[^"\\])*)"""",
+                setOf(RegexOption.DOT_MATCHES_ALL)
+            ).find(response)?.groupValues?.getOrNull(1)?.decodeJsonString().orEmpty()
+            if (content.isBlank()) this else "$this\n$content"
+        } catch (_: Exception) {
+            this
         } finally {
             connection.disconnect()
         }
@@ -60,6 +100,7 @@ class DirectChapterFetcher {
     private fun extractTitle(html: String): String {
         val titlePatterns = listOf(
             Regex("""(?is)\bdata-chapter-name\s*=\s*["']([^"']+)["']"""),
+            Regex("""(?is)\bCHAPTER_TITLE\s*=\s*["']([^"']+)["']"""),
             Regex("""(?is)<[^>]+\bdata-testid\s*=\s*["']title["'][^>]*>(.*?)</[^>]+>"""),
             Regex("""(?is)<h1[^>]*>(.*?)</h1>"""),
             Regex("""(?is)<[^>]+class=["'][^"']*\bchr-title\b[^"']*["'][^>]*>(.*?)</[^>]+>"""),
