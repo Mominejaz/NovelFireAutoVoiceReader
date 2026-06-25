@@ -57,16 +57,27 @@ class DirectChapterFetcher {
     private fun extractTitle(html: String): String {
         val titlePatterns = listOf(
             Regex("""(?is)<h1[^>]*>(.*?)</h1>"""),
-            Regex("""(?is)<[^>]+class=["'][^"']*(?:chapter-title|entry-title|title)[^"']*["'][^>]*>(.*?)</[^>]+>"""),
+            Regex("""(?is)<[^>]+class=["'][^"']*(?:chapter-title|chapter__title|entry-title)[^"']*["'][^>]*>(.*?)</[^>]+>"""),
             Regex("""(?is)<title[^>]*>(.*?)</title>""")
         )
 
-        return titlePatterns
+        val rawTitle = titlePatterns
             .firstNotNullOfOrNull { pattern -> pattern.find(html)?.groupValues?.getOrNull(1)?.let(::stripToText) }
-            ?.substringBefore(" - Novel")
-            ?.substringBefore(" | Novel")
-            ?.trim()
             .orEmpty()
+
+        return cleanupTitle(rawTitle)
+    }
+
+    private fun cleanupTitle(title: String): String {
+        val withoutRoyalRoad = if (title.contains(" | Royal Road")) {
+            title.substringBefore(" | Royal Road").substringBeforeLast(" - ")
+        } else {
+            title
+        }
+        return withoutRoyalRoad
+            .substringBefore(" - Novel")
+            .substringBefore(" | Novel")
+            .trim()
     }
 
     private fun chapterCandidates(html: String): List<String> {
@@ -105,7 +116,7 @@ class DirectChapterFetcher {
         val idPattern = Regex("""(?is)\bid\s*=\s*["']chapter-content["']""")
         val chapterTextIdPattern = Regex("""(?is)\bid\s*=\s*["']chapterText["']""")
         val classPattern = Regex(
-            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b)[^"']*["']"""
+            """(?is)\bclass\s*=\s*["'][^"']*(?:\bchapter__content\b|\bchapter-text\b|\bchapter-inner\b)[^"']*["']"""
         )
 
         openingTagPattern.findAll(html).forEach { match ->
@@ -150,6 +161,7 @@ class DirectChapterFetcher {
         if (sourceUrl.isNullOrBlank()) return ChapterLinks()
 
         val anchorPattern = Regex("""(?is)<a\b([^>]*)>(.*?)</a>""")
+        val linkPattern = Regex("""(?is)<link\b([^>]*)/?>""")
         val hrefPattern = Regex("""(?is)\bhref\s*=\s*["']([^"']+)["']""")
         val relPattern = Regex("""(?is)\brel\s*=\s*["']([^"']+)["']""")
         val classPattern = Regex("""(?is)\bclass\s*=\s*["']([^"']+)["']""")
@@ -158,6 +170,24 @@ class DirectChapterFetcher {
 
         var previousCandidate: ScoredLink? = null
         var nextCandidate: ScoredLink? = null
+
+        linkPattern.findAll(html).forEach { match ->
+            val attributes = match.groupValues.getOrNull(1).orEmpty()
+            val href = hrefPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
+            val resolvedUrl = resolveUrl(sourceUrl, href) ?: return@forEach
+            val rel = relPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
+            val classes = classPattern.find(attributes)?.groupValues?.getOrNull(1).orEmpty()
+
+            val previousScore = chapterLinkScore("", rel, classes, isNext = false)
+            if (previousScore > 0 && previousScore > (previousCandidate?.score ?: 0)) {
+                previousCandidate = ScoredLink(resolvedUrl, previousScore)
+            }
+
+            val nextScore = chapterLinkScore("", rel, classes, isNext = true)
+            if (nextScore > 0 && nextScore > (nextCandidate?.score ?: 0)) {
+                nextCandidate = ScoredLink(resolvedUrl, nextScore)
+            }
+        }
 
         anchorPattern.findAll(html).forEach { match ->
             val attributes = match.groupValues.getOrNull(1).orEmpty()

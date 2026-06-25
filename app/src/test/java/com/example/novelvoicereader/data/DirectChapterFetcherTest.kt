@@ -207,6 +207,61 @@ class DirectChapterFetcherTest {
         )
     }
 
+    @Test
+    fun parse_royalRoad_usesChapterInnerAndHeadNavigationLinks() {
+        val html = """
+            <html>
+                <head>
+                    <title>Not a Chapter - The Sacred Beast Sect | Royal Road</title>
+                    <link rel='prev' href='/fiction/21049/the-sacred-beast-sect/chapter/301650/end-of-the-exams'/>
+                    <link rel='next' href='/fiction/21049/the-sacred-beast-sect/chapter/302436/aftermath'/>
+                </head>
+                <body>
+                    <header><a href="/fictions/best-rated">Best Rated</a></header>
+                    <div class="portlet-title">
+                        <button>Reader Preferences</button>
+                    </div>
+                    <div class="chapter-inner chapter-content">
+                        <p>${longSentence("So I decided to make the cosmology and power rankings clear in the universe of The Sacred Beast Sect.")}</p>
+                        <p>&nbsp;</p>
+                        <p><strong>The Three Realms:</strong></p>
+                        <p>${longSentence("Lets start with the mortal half and call it the Mortal realm, a cosmos consisting of numerous galaxies and worlds.")}</p>
+                    </div>
+                    <section class="author-note">
+                        <h2>About the author</h2>
+                        <p>${longSentence("This author box and comments area should not become narration.")}</p>
+                    </section>
+                    <section class="comments">
+                        <h2>Comments</h2>
+                        <p>Join the discussion on Royal Road.</p>
+                    </section>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val content = fetcher.parse(
+            html,
+            "https://www.royalroad.com/fiction/21049/the-sacred-beast-sect/chapter/301918/not-a-chapter-information-on-the-setting-of-this"
+        )
+
+        assertEquals("Not a Chapter", content.title)
+        assertTrue(content.text.startsWith("So I decided to make the cosmology"))
+        assertTrue(content.text.contains("The Three Realms:"))
+        assertTrue(content.text.contains("Mortal realm"))
+        assertFalse(content.text.contains("Reader Preferences"))
+        assertFalse(content.text.contains("About the author"))
+        assertFalse(content.text.contains("comments area should not become narration"))
+        assertFalse(content.text.contains("Join the discussion"))
+        assertEquals(
+            "https://www.royalroad.com/fiction/21049/the-sacred-beast-sect/chapter/301650/end-of-the-exams",
+            content.previousUrl
+        )
+        assertEquals(
+            "https://www.royalroad.com/fiction/21049/the-sacred-beast-sect/chapter/302436/aftermath",
+            content.nextUrl
+        )
+    }
+
     private fun longSentence(seed: String): String {
         return List(4) { seed }.joinToString(" ")
     }
