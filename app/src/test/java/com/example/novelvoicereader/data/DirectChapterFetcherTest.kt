@@ -159,6 +159,10 @@ class DirectChapterFetcherTest {
                                     <div class="chapter-ad-container" data-ad-position="1">
                                         <div class="ad-unit"><script>window.pubfuturetag = window.pubfuturetag || [];</script></div>
                                     </div>
+                                    <div class="membership-modal overlay" id="join-member-popup">
+                                        <button class="modal-close">Close</button>
+                                        <p>Join as members to support the site.</p>
+                                    </div>
                                     <style>.chapter-ad-container { min-height: 250px; }</style>
                                     <p>${longSentence("The four of them all bought books to their liking, with Man Gu buying a copy of Great Xia's Unofficial History.")}</p>
                                     <p>${longSentence("Many of the stories recorded in the book, even Meng Jingzhou, who knew the inside story, found quite wild.")}</p>
@@ -195,6 +199,8 @@ class DirectChapterFetcherTest {
         assertFalse(content.text.contains("ADVERTISEMENT"))
         assertFalse(content.text.contains("chapter-ad-container"))
         assertFalse(content.text.contains("pubfuturetag"))
+        assertFalse(content.text.contains("Join as members"))
+        assertFalse(content.text.contains("Close"))
         assertFalse(content.text.contains("If you find any errors"))
         assertFalse(content.text.contains("Submit Report"))
         assertEquals(
