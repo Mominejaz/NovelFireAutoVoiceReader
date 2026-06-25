@@ -1,6 +1,6 @@
 # Novel Voice Reader
 
-Novel Voice Reader is an Android app for turning web novel chapters into clean, listenable text-to-speech. Paste or share a chapter URL, let the app strip page clutter, and listen in a reader-first interface with playback controls, chapter navigation, offline saves, and background audio.
+Novel Voice Reader is an Android app for turning web novel chapters you can already access into clean, listenable text-to-speech for personal reading and accessibility workflows. Paste or share a chapter URL, let the app strip page clutter, and listen in a reader-first interface with playback controls, chapter navigation, personal offline saves, and background audio.
 
 ![Reader mode screenshot](screenshots/novel_voice_reader_ui_portrait_final_loaded.png)
 
@@ -12,7 +12,7 @@ Novel Voice Reader is an Android app for turning web novel chapters into clean, 
 - Android text-to-speech playback with voice and speed controls.
 - Foreground playback service for listening with the screen off.
 - Previous and next chapter navigation from real page links when available.
-- Saved library chapters and future chapter preloading.
+- Saved library chapters for personal offline reading and future chapter preloading.
 - Sleep timer options for time-based or chapter-based stopping.
 - Share-sheet support for sending chapter links into the app.
 
@@ -35,6 +35,14 @@ The parser is designed around clean chapter extraction and currently has targete
 - Generic article/main/content containers as a fallback
 
 Some sites may still fail if they hide chapter text behind scripts, login gates, unusual markup, or aggressive bot protection. Contributions that add focused parser fixtures are very welcome.
+
+Important: source support is best-effort and may break when websites change their markup, access rules, or rendering behavior.
+
+## Content and Usage
+
+Novel Voice Reader does not host, include, redistribute, or provide novel content. It fetches user-provided chapter URLs, cleans the readable text for local playback, and can save chapters locally on the user's device for personal offline reading.
+
+The app is not intended to bypass logins, paywalls, access controls, copyright protections, or website terms. Users are responsible for only reading or saving content they are allowed to access and for respecting authors, translators, publishers, and each website's terms.
 
 ## Requirements
 
@@ -97,10 +105,6 @@ app/src/main/java/com/example/novelvoicereader/
 
 Generated build outputs, release APKs, Android Studio workspace state, and local SDK paths are intentionally ignored. Keep commits focused on source, tests, docs, and intentional assets.
 
-## Notes
-
-Novel Voice Reader is meant for personal reading and accessibility workflows. Please respect authors, translators, publishers, and each website's terms when using or extending the app.
-
 ## License
 
-No license has been selected yet. Add a license file before publishing the repository if you want to clearly define how others may use, fork, and redistribute the code.
+Licensed under the MIT License. See [LICENSE](LICENSE).
