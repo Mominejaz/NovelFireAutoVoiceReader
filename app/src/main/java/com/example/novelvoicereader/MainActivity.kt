@@ -134,17 +134,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private val preferredVoiceNames = listOf(
-        "river",
-        "en-us-river",
-        "en-us-x-river-network",
-        "en-us-x-river-local",
-        "en-us-x-sfg-network",
-        "en-us-x-sfg-local",
-        "en-us-x-iog-network",
-        "en-us-x-iog-local"
-    )
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -552,7 +541,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 "Queue offline chapters" to "Open More, choose Queue chapters, then save the current chapter or preload the next 5 to 25 chapters for later.",
                 "Reader comfort" to "Open More, choose Reader text size, and pick the size that feels best for long sessions.",
                 "Share a chapter" to "Open More, choose Share chapter, and send the current link to another app.",
-                "Voice and speed" to "Open More for speed, or tap Voice to choose a text-to-speech voice. River is preferred when it is installed on the phone.",
+                "Voice and speed" to "Open More for speed, or tap Voice to choose a text-to-speech voice installed on your phone.",
                 "Screen off listening" to "Playback runs through a foreground playback service, so the loaded chapter can keep playing while the screen is locked."
             )
         )
@@ -798,22 +787,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun applySavedOrPreferredVoice() {
         val availableVoices = englishVoices()
         val savedVoiceName = prefs.getString(KEY_SELECTED_VOICE, null)
-        val selectedVoice = availableVoices.firstOrNull { it.name == savedVoiceName }
-            ?: availableVoices.firstOrNull { voice -> voice.name.lowercase(Locale.US).contains("river") }
-            ?: preferredVoiceNames.firstNotNullOfOrNull { preferred ->
-                availableVoices.firstOrNull { it.name.lowercase(Locale.US).contains(preferred) }
-            }
+        val selectedVoice = savedVoiceName
+            ?.let { savedName -> availableVoices.firstOrNull { it.name == savedName } }
+            ?: defaultEnglishVoice()
             ?: availableVoices.firstOrNull()
 
         if (selectedVoice != null) {
             tts.voice = selectedVoice
-            prefs.edit().putString(KEY_SELECTED_VOICE, selectedVoice.name).apply()
-            updateVoiceButton(selectedVoice)
-            statusText.text = if (selectedVoice.name.contains("river", ignoreCase = true)) {
-                "Status: using River listening voice"
-            } else {
-                "Status: River voice not installed. Using ${selectedVoice.name}"
+            if (savedVoiceName != null && savedVoiceName != selectedVoice.name) {
+                prefs.edit().remove(KEY_SELECTED_VOICE).apply()
             }
+            updateVoiceButton(selectedVoice)
+            statusText.text = "Status: using ${voiceLabel(selectedVoice)}"
         } else {
             voiceButton.text = "Voice"
             statusText.text = "Status: no English TTS voice found"
@@ -833,26 +818,37 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        val labels = voices.map { voiceLabel(it) }.toTypedArray()
-        val hasRiver = voices.any { it.name.contains("river", ignoreCase = true) }
+        val defaultVoice = defaultEnglishVoice()
+        val labels = (listOf("System default${defaultVoice?.let { " - ${voiceLabel(it)}" }.orEmpty()}") +
+            voices.map { voiceLabel(it) }).toTypedArray()
+        val savedVoiceName = prefs.getString(KEY_SELECTED_VOICE, null)
+        val checkedIndex = savedVoiceName
+            ?.let { savedName -> voices.indexOfFirst { it.name == savedName } }
+            ?.takeIf { it >= 0 }
+            ?.plus(1)
+            ?: 0
         val dialog = AlertDialog.Builder(this)
             .setTitle("Listening voice")
-            .setItems(labels) { _, which ->
-                val selectedVoice = voices[which]
-                tts.voice = selectedVoice
-                prefs.edit().putString(KEY_SELECTED_VOICE, selectedVoice.name).apply()
-                updateVoiceButton(selectedVoice)
-                statusText.text = "Status: voice set to ${voiceLabel(selectedVoice)}"
+            .setSingleChoiceItems(labels, checkedIndex) { picker, which ->
+                if (which == 0) {
+                    prefs.edit().remove(KEY_SELECTED_VOICE).apply()
+                    defaultEnglishVoice()?.let { tts.voice = it }
+                    voiceButton.text = "Voice"
+                    statusText.text = "Status: using system default voice"
+                    notifyPlaybackVoiceChanged(null)
+                } else {
+                    val selectedVoice = voices[which - 1]
+                    tts.voice = selectedVoice
+                    prefs.edit().putString(KEY_SELECTED_VOICE, selectedVoice.name).apply()
+                    updateVoiceButton(selectedVoice)
+                    statusText.text = "Status: voice set to ${voiceLabel(selectedVoice)}"
+                    notifyPlaybackVoiceChanged(selectedVoice.name)
+                }
                 tts.speak("This is the selected listening voice.", TextToSpeech.QUEUE_FLUSH, null, "voice_test")
+                picker.dismiss()
             }
+            .setNeutralButton("TTS settings") { _, _ -> openTtsSettings() }
             .setNegativeButton("Cancel", null)
-
-        if (!hasRiver) {
-            dialog.setMessage("River is not installed on this device. Install or enable it in Android Text-to-speech settings, then reopen this picker.")
-            dialog.setPositiveButton("TTS settings") { _, _ ->
-                openTtsSettings()
-            }
-        }
 
         dialog.show()
     }
@@ -860,7 +856,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun openTtsSettingsPrompt() {
         AlertDialog.Builder(this)
             .setTitle("Install a voice")
-            .setMessage("No English TTS voices are available. Open Android Text-to-speech settings to install River or another compatible voice.")
+            .setMessage("No English text-to-speech voices are available. Open Android Text-to-speech settings to install or enable a compatible voice.")
             .setPositiveButton("TTS settings") { _, _ ->
                 openTtsSettings()
             }
@@ -1035,24 +1031,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun englishVoices(): List<Voice> {
         return tts.voices
             ?.filter { it.locale.language.equals(Locale.ENGLISH.language, ignoreCase = true) }
-            ?.sortedWith(compareByDescending<Voice> { it.name.contains("river", ignoreCase = true) }
-                .thenByDescending { it.name.contains("network", ignoreCase = true) }
+            ?.sortedWith(compareByDescending<Voice> { it.name.contains("network", ignoreCase = true) }
+                .thenBy { it.locale.displayName }
                 .thenBy { it.name })
             .orEmpty()
     }
 
+    private fun defaultEnglishVoice(): Voice? {
+        return tts.defaultVoice
+            ?.takeIf { it.locale.language.equals(Locale.ENGLISH.language, ignoreCase = true) }
+    }
+
     private fun voiceLabel(voice: Voice): String {
-        val prefix = if (voice.name.contains("river", ignoreCase = true)) "River - " else ""
         val type = if (voice.name.contains("network", ignoreCase = true)) "network" else "local"
-        return "$prefix${voice.locale.displayName} ($type) - ${voice.name}"
+        return "${voice.locale.displayName} ($type) - ${voice.name}"
     }
 
     private fun updateVoiceButton(voice: Voice) {
-        voiceButton.text = if (voice.name.contains("river", ignoreCase = true)) {
-            "River voice"
-        } else {
-            "Voice"
-        }
+        voiceButton.text = "Voice"
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
@@ -1749,6 +1745,19 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun sendPlaybackAction(action: String) {
         startService(Intent(this, PlaybackService::class.java).setAction(action))
+    }
+
+    private fun notifyPlaybackVoiceChanged(voiceName: String?) {
+        if (!PlaybackService.isPlaybackActive) return
+        startService(
+            Intent(this, PlaybackService::class.java)
+                .setAction(PlaybackService.ACTION_SET_VOICE)
+                .apply {
+                    if (voiceName != null) {
+                        putExtra(PlaybackService.EXTRA_VOICE_NAME, voiceName)
+                    }
+                }
+        )
     }
 
     private fun stopPlaybackService() {
