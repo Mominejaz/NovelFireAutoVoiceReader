@@ -68,6 +68,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
                 }
             }
             ACTION_SEEK -> seekTo(intent.getIntExtra(EXTRA_INDEX, currentIndex))
+            ACTION_SET_VOICE -> updateVoice(intent.getStringExtra(EXTRA_VOICE_NAME))
             ACTION_STOP -> stopPlayback()
         }
 
@@ -131,9 +132,32 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun applySelectedVoice() {
-        val selectedName = voiceName ?: return
-        val selectedVoice = tts.voices?.firstOrNull { it.name == selectedName } ?: return
+        val selectedName = voiceName
+        val selectedVoice = if (selectedName == null) {
+            defaultEnglishVoice()
+        } else {
+            tts.voices?.firstOrNull { it.name == selectedName }
+        } ?: return
         tts.voice = selectedVoice
+    }
+
+    private fun defaultEnglishVoice(): android.speech.tts.Voice? {
+        return tts.defaultVoice
+            ?.takeIf { it.locale.language.equals(Locale.ENGLISH.language, ignoreCase = true) }
+    }
+
+    private fun updateVoice(selectedName: String?) {
+        voiceName = selectedName
+        if (!ttsReady) return
+
+        applySelectedVoice()
+        if (isPlaying && chunks.isNotEmpty()) {
+            tts.stop()
+            speakCurrent()
+        } else {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.notify(NOTIFICATION_ID, buildNotification())
+        }
     }
 
     private fun speakCurrent() {
@@ -391,6 +415,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
         const val ACTION_PAUSE = "com.example.novelvoicereader.action.PAUSE"
         const val ACTION_RESUME = "com.example.novelvoicereader.action.RESUME"
         const val ACTION_SEEK = "com.example.novelvoicereader.action.SEEK"
+        const val ACTION_SET_VOICE = "com.example.novelvoicereader.action.SET_VOICE"
         const val ACTION_STOP = "com.example.novelvoicereader.action.STOP"
         const val ACTION_PROGRESS = "com.example.novelvoicereader.action.PROGRESS"
 
